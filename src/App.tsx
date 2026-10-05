@@ -23,6 +23,7 @@ function readLocation(): { view: View; site: string | null } {
 }
 export default function App() { const { user, signOut } = useSession(); const { workspace } = useWorkspace(); const policy = workspace.configs.find(value => value.id === workspace.activeConfigId)!;
   const [route, setRoute] = useState(readLocation);
+  useEffect(() => { if (window.matchMedia('(max-width: 760px)').matches) { const active = document.querySelector<HTMLElement>('.netone-header nav button[aria-current="page"]'); if (active?.parentElement) active.parentElement.scrollLeft = Math.max(0, active.offsetLeft - active.parentElement.offsetLeft - 16); } }, [route.view]);
   const [filters, setFilters] = useState<PortfolioFilters>(DEFAULT_FILTERS);
   const [weights, setWeights] = useState<Weights>({ ...policy.weights });
   useEffect(() => setWeights({ ...policy.weights }), [policy.id]);
@@ -58,7 +59,7 @@ export default function App() { const { user, signOut } = useSession(); const { 
       <details className="netone-shell domain-navigation" open={operationalViews.includes(route.view)}><summary>Network, governance and data</summary><nav className="nav-row" aria-label="Evidence domains">{([['network','Network intelligence'],['incidents','Incident evidence'],['regulatory','Service rules'],['config','Models and sensitivity'],['data','Data imports'],['evidence','Decision evidence'],['assurance','Service assurance']] as const).map(([view,label])=><button key={view} aria-current={route.view===view?'page':undefined} onClick={()=>navigate(view)}>{label}</button>)}</nav></details>
     </header>
     <main className="netone-shell main-area" id="main-content" tabIndex={-1}>
-      <p className="data-notice">Demonstration data only. All assets, financial values, intervention costs and scoring policy are fictional. Recommendations are advisory. Scenario allocations are advisory and saved through the authenticated server.</p>
+      <details className="data-notice dataset-notice"><summary>Synthetic data | advisory decisions only</summary><p>All assets, financial values, intervention costs and scoring policy are fictional. Recommendations and allocations are advisory; saved evidence is retained through the authenticated server.</p></details>
       <section className="filter-bar" aria-label="Portfolio filters">
         <label>Region<select aria-label="Region" value={filters.region} onChange={event => choose('region', event.target.value)}><option>All</option>{Array.from(new Set(portfolio.map(site => site.region))).map(region => <option key={region}>{region}</option>)}</select></label>
         <label>Technology<select aria-label="Technology" value={filters.technology} onChange={event => choose('technology', event.target.value)}><option>All</option>{['3G', '4G', '5G'].map(value => <option key={value}>{value}</option>)}</select></label>
