@@ -2,7 +2,7 @@ export const DATASET_VERSION = 'netone-demo-0.1';
 export const PERIODS = ['2026-08', '2026-09'] as const;
 export type Period = typeof PERIODS[number];
 export type Quality = 'COMPLETE' | 'PARTIAL' | 'STALE' | 'CONFLICT';
-export const STATES = ['Capacity constrained', 'Under-utilised', 'Reliability burden', 'Strategic inclusion', 'Monitor'] as const;
+export const STATES = ['Capacity constrained', 'Under-utilised', 'Reliability burden', 'Commercially strong', 'Strategic inclusion', 'Service risk', 'Monitor'] as const;
 export type DecisionState = typeof STATES[number];
 export interface Observation {
   period: Period;
@@ -15,6 +15,9 @@ export interface Observation {
   contribution: number | null;
   failureCost: number;
   quality: Quality;
+  trafficGB?: number | null;
+  downtimeHours?: number | null;
+  sourceRef?: string;
 }
 export interface Site {
   id: string;
@@ -25,6 +28,10 @@ export interface Site {
   longitude: number;
   strategic: boolean;
   demo: true;
+  serviceRisk?: boolean;
+  incidentBurden?: number;
+  linkedIncidentCount?: number;
+  networkHistory?: { period: string; trafficGB: number; utilisation: number | null; downtimeHours: number; faults: number; sourceRef: string; quality: Quality }[];
   observations: Observation[];
   history: { date: string; action: string; cost: number; outcome: string }[];
 }
@@ -37,13 +44,15 @@ export function observation(site: Site, period: Period): Observation {
 }
 export function decisionState(site: Site, row: Observation): DecisionState {
   if (row.availability < 98 || row.faults >= 5) return 'Reliability burden';
+  if (site.serviceRisk) return 'Service risk';
   if (row.utilisation !== null && row.utilisation >= 80) return 'Capacity constrained';
   if (site.strategic) return 'Strategic inclusion';
   if (row.utilisation !== null && row.utilisation < 35) return 'Under-utilised';
+  if (row.contribution !== null && row.contribution >= 16000) return 'Commercially strong';
   return 'Monitor';
 }
 export function filterPortfolio(sites: Site[], filters: PortfolioFilters): Site[] {
-  return sites.filter(site => (filters.region === 'All' || site.region === filters.region)
+  return sites.filter(site => site.observations.some(row => row.period === filters.period) && (filters.region === 'All' || site.region === filters.region)
     && (filters.technology === 'All' || site.technology === filters.technology)
     && (filters.state === 'All' || decisionState(site, observation(site, filters.period)) === filters.state));
 }

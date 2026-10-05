@@ -267,3 +267,13 @@ input[type=checkbox] { accent-color: var(--orange-ink); }
 }
 
 @media (max-width: 760px) { .table-scroll::before { content: "Swipe or scroll to see all columns →"; display: block; font-size: 11px; color: #595959; padding: 8px 0; } }
+.domain-navigation { padding-block: 4px 12px; }
+.domain-navigation summary { color: #d4d4d4; font-size: 12px; min-height: 40px; }
+.domain-navigation .nav-row { flex-wrap: wrap; }
+.action-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.editor-label { display: grid; gap: 8px; font-size: 13px; margin-block: 16px; }
+.editor-label input, textarea { padding: 12px; border: 1px solid #ccc; border-radius: 4px; width: 100%; font-size: 16px; }
+textarea { min-height: 240px; font-family: ui-monospace, monospace; }
+.evidence-json { max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; background: #f7f7f7; padding: 14px; }
+.trend-chart { width: 100%; max-width: 650px; height: auto; }
+@media(max-width:760px) { .domain-navigation .nav-row { display: grid; } .action-row { gap: 8px; } }

@@ -19,9 +19,9 @@ const cents = (value: number) => {
   if (!Number.isFinite(value) || value < 0 || !Number.isSafeInteger(rounded) || Math.abs(value * 100 - rounded) > .000001) throw new Error('Money must be a non-negative amount with at most two decimal places.');
   return rounded;
 };
-export function allocateScenario(candidates: Candidate[], input: ScenarioInput): ScenarioResult {
+export function allocateScenario(candidates: Candidate[], input: ScenarioInput, balancedWeights?: Weights): ScenarioResult {
   const budget = cents(input.budget);
-  const objective = OBJECTIVES[input.objective];
+  const objective = input.objective === 'balanced' && balancedWeights ? { ...OBJECTIVES.balanced, weights: balancedWeights } : OBJECTIVES[input.objective];
   if (!objective) throw new Error('Unknown scenario objective.');
   if (!Number.isFinite(input.minimumScore) || input.minimumScore < 0 || input.minimumScore > 100) throw new Error('Minimum objective score must be between 0 and 100.');
   if (new Set(candidates.map(candidate => candidate.id)).size !== candidates.length) throw new Error('Duplicate candidate identifiers.');

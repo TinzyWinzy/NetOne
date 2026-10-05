@@ -17,7 +17,9 @@
     "e2e:scenarios": "node e2e/scenarios.mjs",
     "migrate:netone": "node db/migrate-netone.mjs",
     "test:backend": "node tests/backend.mjs",
-    "e2e:governance": "node e2e/governance.mjs"
+    "e2e:governance": "node e2e/governance.mjs",
+    "test:domains": "node tests/domains.mjs",
+    "e2e:domains": "node e2e/domains.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

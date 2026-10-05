@@ -4,8 +4,12 @@ import { filterPortfolio, PERIODS, STATES } from '../src/domain/portfolio.js';
 import { generateCandidates } from '../src/domain/investments.js';
 import { allocateScenario } from '../src/domain/scenarios.js';
 import type { ScenarioInput, SavedScenario } from '../src/domain/scenarios.js';
-import { commit, listScenarios, listAudit, isRevoked } from './repository.js';
+import { commit, listScenarios, listAudit, isRevoked, loadWorkspace, saveWorkspace, RevisionConflict } from './repository.js';
 import { databaseUrl } from './database.js';
+import { seedWorkspace } from './seed.js';
+import { executeCommand, digest, CommandError, validateFilters } from './commands.js';
+import { enrichSites, scoreWorkspace, sensitivity } from '../src/domain/operations.js';
+import type { Workspace } from '../src/domain/operations.js';
 export type Role = 'Executive' | 'Finance' | 'Network' | 'Regulatory' | 'Admin';
 export interface Identity { username: string; role: Role }
 interface Account extends Identity { salt: string; hash: string }
@@ -48,6 +52,13 @@ function canonical(value: any): any { return Array.isArray(value) ? value.map(ca
 const evidenceHash = (data: unknown) => createHash('sha256').update(JSON.stringify(canonical(data))).digest('hex');
 const audit = async (actor: Identity, action: string, subject: string, data: unknown, scenario?: SavedScenario, revoked?: { hash: string; expires: string }) => commit({ id: randomUUID(), actor: actor.username, role: actor.role, action, subject, occurredAt: new Date().toISOString(), evidenceHash: evidenceHash(data) }, scenario, revoked);
 const failures = new Map<string, { count: number; until: number }>();
+async function getWorkspace(): Promise<Workspace> {
+  const existing = await loadWorkspace(); if (existing) return existing;
+  const workspace = seedWorkspace();
+  try { await saveWorkspace(workspace, -1, { id: randomUUID(), actor: 'synthetic-seed', role: 'System', action: 'CANONICAL_SEED', subject: 'workspace', occurredAt: new Date().toISOString(), evidenceHash: digest(workspace) }); }
+  catch (error) { if (!(error instanceof RevisionConflict)) throw error; }
+  return (await loadWorkspace())!;
+}
 export async function handleNetOne(request: RequestData): Promise<ResponseData> {
   try {
     secret();
@@ -77,6 +88,28 @@ export async function handleNetOne(request: RequestData): Promise<ResponseData> 
       return { status: 200, body: { user: actor }, headers: { 'Set-Cookie': cookie(`${payload}.${sign(payload)}`, 28800) } };
     }
     if (!user) return { status: 401, body: { error: 'Authentication required.' } };
+    if (request.action === 'workspace' && request.method === 'GET') {
+      const workspace = await getWorkspace();
+      return { status: 200, body: { workspace: { ...workspace, evidence: workspace.evidence.map(({ candidate, source, ...record }) => ({ ...record, candidateId: candidate.id, siteId: candidate.siteId, action: candidate.action, score: candidate.score, period: candidate.period })), imports: user.role === 'Admin' ? workspace.imports : workspace.imports.map(({ quarantine, acceptedRecords, previousRecords, ...run }) => ({ ...run, quarantine: [] })) } } };
+    }
+    if (request.action === 'sensitivity' && request.method === 'POST') {
+      if (!['Finance','Network','Admin'].includes(user.role)) return { status: 403, body: { error: 'Sensitivity analysis permission required.' } };
+      const workspace = await getWorkspace(); const result = sensitivity(workspace, validateFilters(request.body?.filters, workspace), request.body?.configId);
+      await audit(user, 'SENSITIVITY_RUN', workspace.activeConfigId, result); return { status: 200, body: { result } };
+    }
+    if (request.action === 'candidate-evidence' && request.method === 'GET') { const workspace = await getWorkspace(); const evidence = workspace.evidence.find(record => record.id === request.id); return evidence ? { status: 200, body: { evidence } } : { status: 404, body: { error: 'Evidence record not found.' } }; }
+    if (request.action === 'candidate-export' && request.method === 'POST') {
+      if (!['Finance','Admin'].includes(user.role)) return { status:403, body:{error:'Finance or Admin export permission required.'} };
+      const workspace=await getWorkspace();const evidence=workspace.evidence.find(record=>record.id===request.id);if(!evidence)return {status:404,body:{error:'Evidence not found.'}};
+      await audit(user,'CANDIDATE_EXPORTED',evidence.id,evidence);return {status:200,body:{evidence,exportedBy:user.username,exportedAt:new Date().toISOString(),dataStatus:'SYNTHETIC'}};
+    }
+    if (['incidents','rules','config','score','imports','candidate-evidence','reviews'].includes(request.action) && request.method === 'POST') {
+      const previousWorkspace=await getWorkspace();const workspace=structuredClone(previousWorkspace);
+      if(request.action==='reviews'&&request.body?.operation==='submit'&&request.body?.subjectType==='scenario'&&!(await listScenarios()).some(record=>record.id===request.body.subjectId))return {status:404,body:{error:'Saved scenario not found.'}};
+      const expected=workspace.revision;const command=executeCommand(workspace,request.action,request.body,user,new Date().toISOString());workspace.revision++;
+      await saveWorkspace(workspace,expected,{id:randomUUID(),actor:user.username,role:user.role,action:command.auditAction,subject:command.subject,occurredAt:new Date().toISOString(),evidenceHash:digest(command.output),beforeHash:digest(previousWorkspace),afterHash:digest(workspace)},previousWorkspace);
+      return {status:200,body:{...command.output as object,revision:workspace.revision}};
+    }
     if (request.action === 'logout' && request.method === 'POST') {
       const token = request.cookie!.split(';').map(value => value.trim()).find(value => value.startsWith('netone_session='))!.slice('netone_session='.length);
       const session = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString());
@@ -92,10 +125,12 @@ export async function handleNetOne(request: RequestData): Promise<ResponseData> 
       if (!['Finance', 'Admin'].includes(user.role)) return { status: 403, body: { error: 'Finance or Admin permission required to save scenarios.' } };
       const input = request.body?.input as ScenarioInput;
       if (!input || !input.filters || !PERIODS.includes(input.filters.period) || typeof input.filters.region !== 'string' || typeof input.filters.technology !== 'string' || !(input.filters.state === 'All' || STATES.includes(input.filters.state as any)) || !Array.isArray(input.mustFund) || !Array.isArray(input.excluded) || input.mustFund.length > 400 || input.excluded.length > 400 || ![...input.mustFund, ...input.excluded].every(value => typeof value === 'string')) return { status: 400, body: { error: 'Invalid scenario input.' } };
-      if (!(input.filters.region === 'All' || portfolio.some(site => site.region === input.filters.region)) || !['All', '3G', '4G', '5G'].includes(input.filters.technology)) return { status: 400, body: { error: 'Unknown portfolio filter.' } };
+      const workspace = await getWorkspace();
+      if (!(input.filters.region === 'All' || workspace.sites.some(site => site.region === input.filters.region)) || !['All', '3G', '4G', '5G'].includes(input.filters.technology)) return { status: 400, body: { error: 'Unknown portfolio filter.' } };
       let result;
-      try { result = allocateScenario(generateCandidates(filterPortfolio(portfolio, input.filters), input.filters.period), input); } catch (error) { return { status: 400, body: { error: error instanceof Error ? error.message : 'Invalid allocation.' } }; }
-      if (request.action === 'run') { await audit(user, 'SCENARIO_RUN', randomUUID(), result); return { status: 200, body: { result } }; }
+      try { const scored = scoreWorkspace(workspace,input.filters); result = allocateScenario(scored.candidates, input, scored.config.weights); } catch (error) { return { status: 400, body: { error: error instanceof Error ? error.message : 'Invalid allocation.' } }; }
+      if (request.action === 'run') { await audit(user, 'SCENARIO_RUN', randomUUID(), result); return { status: 200, body: { result, snapshotHash: digest(result) } }; }
+      if (request.body?.expectedHash && request.body.expectedHash !== digest(result)) return {status:409,body:{error:'Canonical evidence or policy changed after this run. Run the scenario again before saving.'}};
       const scenario: SavedScenario = { id: randomUUID(), savedAt: new Date().toISOString(), name: typeof request.body.name === 'string' ? request.body.name.trim().slice(0, 120) || 'Capital scenario' : 'Capital scenario', result };
       await audit(user, 'SCENARIO_SAVED', scenario.id, scenario, scenario);
       return { status: 201, body: { scenario } };
@@ -108,7 +143,7 @@ export async function handleNetOne(request: RequestData): Promise<ResponseData> 
       return { status: 200, body: { scenario, evidenceHash: evidenceHash(scenario), exportedBy: user.username, dataStatus: 'SYNTHETIC', exportedAt: new Date().toISOString() } };
     }
     return { status: 404, body: { error: 'Operation not found.' } };
-  } catch { return { status: 503, body: { error: 'NetOne service unavailable. Check dedicated backend configuration and storage.' } }; }
+  } catch (error) { if(error instanceof CommandError)return {status:error.status,body:{error:error.message}};if(error instanceof RevisionConflict)return {status:409,body:{error:error.message}};return { status: 503, body: { error: 'NetOne service unavailable. Check dedicated backend configuration and storage.' } }; }
 }
 
 

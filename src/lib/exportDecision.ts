@@ -29,7 +29,7 @@ export async function exportDecision(id: string, format: 'json' | 'csv' | 'pdf')
       const candidate = scenario.result.candidates.find(value => value.id === allocation.candidateId)!;
       lines.push(`${candidate.siteId} ${candidate.action}; USD ${allocation.cost}; objective ${allocation.objectiveScore.toFixed(2)}`, allocation.reason,
         `Evidence ${candidate.sourceRef}; model ${candidate.modelVersion}; weights ${candidate.weightVersion}`,
-        `Rule ${candidate.serviceEvidence.rule.id} v${candidate.serviceEvidence.rule.version}; DEMO only`, '');
+        `Rule ${(candidate.serviceEvidence.rule?.id || 'NO-ACTIVE-RULE')} v${(candidate.serviceEvidence.rule?.version || 'none')}; DEMO only`, '');
     }
     for (const line of lines) {
       if (/^N\d{3} /.test(line) && y < 150) { page = pdf.addPage([595, 842]); y = 800; }

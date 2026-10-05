@@ -21,3 +21,7 @@ Run `npm run test:backend` and `npm run e2e:governance` against a separate test 
 See [GitHub, Vercel and Neon deployment](docs/deployment.md) for persistent production setup.
 
 Production: https://netone-black.vercel.app uses the dedicated Vercel Neon integration. Production accounts are separate from local demo accounts. See docs/deployment.md; node tests/database.mjs checks database-source boundaries.
+
+## Canonical domain milestone
+
+Network history, incident lifecycle, reviewed service rules, model sensitivity, controlled imports and shared candidate evidence are available through **Network, governance and data**. See [acceptance review](docs/acceptance-review.md) and [architecture amendment](docs/adr-010-canonical-workspace.md). All records remain synthetic.
