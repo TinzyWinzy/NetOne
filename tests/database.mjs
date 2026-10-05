@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
+const source=ts.transpileModule(fs.readFileSync('server/database.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2020}}).outputText;
+const {databaseUrl}=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+delete process.env.NETONE_DATABASE_URL;
+process.env.DATABASE_URL='postgresql://inherited.invalid/db';
+delete process.env.VERCEL;
+process.env.NETONE_DATABASE_SOURCE='vercel-neon';
+assert.equal(databaseUrl(),undefined,'local integration flag must never select the inherited connection');
+process.env.VERCEL='1';
+delete process.env.NETONE_DATABASE_SOURCE;
+assert.equal(databaseUrl(),undefined,'Vercel must explicitly opt in to its Neon integration');
+process.env.NETONE_DATABASE_SOURCE='vercel-neon';
+assert.equal(databaseUrl(),process.env.DATABASE_URL);
+process.env.NETONE_DATABASE_URL='postgresql://explicit.invalid/db';
+assert.equal(databaseUrl(),process.env.NETONE_DATABASE_URL);
+console.log('Database source boundaries passed.');

@@ -19,3 +19,5 @@ Server-backed scenarios, role checks, attributed audit and PDF/CSV/JSON exports 
 Run `npm run test:backend` and `npm run e2e:governance` against a separate test server at port 5175 (or set `BASE_URL`). Set `NETONE_LOCAL_DATA_DIR` to an isolated test directory for verification. Frontend browser tests now sign in through the server.
 
 See [GitHub, Vercel and Neon deployment](docs/deployment.md) for persistent production setup.
+
+Production: https://netone-black.vercel.app uses the dedicated Vercel Neon integration. Production accounts are separate from local demo accounts. See docs/deployment.md; node tests/database.mjs checks database-source boundaries.
