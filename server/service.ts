@@ -5,6 +5,7 @@ import { generateCandidates } from '../src/domain/investments';
 import { allocateScenario } from '../src/domain/scenarios';
 import type { ScenarioInput, SavedScenario } from '../src/domain/scenarios';
 import { commit, listScenarios, listAudit, isRevoked } from './repository';
+import { databaseUrl } from './database';
 export type Role = 'Executive' | 'Finance' | 'Network' | 'Regulatory' | 'Admin';
 export interface Identity { username: string; role: Role }
 interface Account extends Identity { salt: string; hash: string }
@@ -19,7 +20,7 @@ const localAccounts: Account[] = roles.map(role => {
 });
 function secret() {
   const value = process.env.NETONE_AUTH_SECRET;
-  if (production() && (!value || value.length < 32 || !process.env.NETONE_USERS_JSON || !process.env.NETONE_DATABASE_URL || !process.env.NETONE_PUBLIC_ORIGIN)) throw new Error('NetOne authentication, users, database and public origin must be configured for deployment.');
+  if (production() && (!value || value.length < 32 || !process.env.NETONE_USERS_JSON || !databaseUrl() || !process.env.NETONE_PUBLIC_ORIGIN)) throw new Error('NetOne authentication, users, database and public origin must be configured for deployment.');
   return value || localSecret;
 }
 function accounts(): Account[] {
@@ -56,7 +57,7 @@ export async function handleNetOne(request: RequestData): Promise<ResponseData> 
       if (request.origin !== expected) return { status: 403, body: { error: 'Same-origin request required.' } };
     }
     const user = await identity(request.cookie);
-    if (request.action === 'session' && request.method === 'GET') return { status: 200, body: { user, localDemo: !production() && !process.env.NETONE_USERS_JSON, persistence: process.env.NETONE_DATABASE_URL ? 'PostgreSQL' : 'Local server file' } };
+    if (request.action === 'session' && request.method === 'GET') return { status: 200, body: { user, localDemo: !production() && !process.env.NETONE_USERS_JSON, persistence: databaseUrl() ? 'PostgreSQL' : 'Local server file' } };
     if (request.action === 'login' && request.method === 'POST') {
       const username = typeof request.body?.username === 'string' ? request.body.username : '';
       const password = typeof request.body?.password === 'string' ? request.body.password : '';
@@ -109,3 +110,4 @@ export async function handleNetOne(request: RequestData): Promise<ResponseData> 
     return { status: 404, body: { error: 'Operation not found.' } };
   } catch { return { status: 503, body: { error: 'NetOne service unavailable. Check dedicated backend configuration and storage.' } }; }
 }
+

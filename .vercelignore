@@ -1,0 +1,6 @@
+.env
+.env.*
+.netone-data
+artifacts
+node_modules
+.git

@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { neon } from '@neondatabase/serverless';
+import { databaseUrl } from './database';
 import type { SavedScenario } from '../src/domain/scenarios';
 export interface AuditRecord { id: string; actor: string; role: string; action: string; subject: string; occurredAt: string; evidenceHash: string }
 interface Store { scenarios: SavedScenario[]; audit: AuditRecord[]; revoked?: { hash: string; expires: string }[] }
@@ -9,7 +10,7 @@ const file = () => path.join(process.env.NETONE_LOCAL_DATA_DIR || path.join(proc
 async function readLocal(): Promise<Store> {
   try { return JSON.parse(await fs.readFile(file(), 'utf8')); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { scenarios: [], audit: [] }; throw error; }
 }
-function db() { return process.env.NETONE_DATABASE_URL ? neon(process.env.NETONE_DATABASE_URL) : null; }
+function db() { const url = databaseUrl(); return url ? neon(url) : null; }
 function localAllowed() { if (process.env.VERCEL || process.env.NODE_ENV === 'production') throw new Error('NETONE_DATABASE_URL is required outside local development.'); }
 export async function listScenarios(): Promise<SavedScenario[]> {
   const sql = db(); if (sql) { const rows = await sql`SELECT snapshot FROM netone_scenarios ORDER BY created_at`; return rows.map(row => row.snapshot as SavedScenario); }

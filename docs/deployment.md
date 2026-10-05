@@ -46,3 +46,5 @@ Sign in as Finance, run and save a uniquely named scenario, and check its audit 
 Local .netone-data/store.json records are not imported automatically; the production database starts empty. A deliberate import needs record validation and duplicate handling.
 
 Once Vercel Git integration is connected, pushes to main deploy production. Preview environments require separate database credentials, accounts and a matching origin; do not share production data with preview code.
+
+The connected NetOne Vercel project now explicitly opts in with NETONE_DATABASE_SOURCE=vercel-neon. Only inside Vercel may that setting select its integration-provided DATABASE_URL. Local DATABASE_URL is ignored. NETONE_MIGRATE=1 is a one-deployment build flag to apply the additive schema inside Vercel without exporting sensitive integration credentials. Normal builds skip migration.
