@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+const base = process.env.BASE_URL || 'http://127.0.0.1:5175';
+async function request(action, method = 'GET', body, cookie = '', origin = base, id) {
+  const response = await fetch(`${base}/api/netone?action=${action}${id ? '&id=' + id : ''}`, { method, headers: { 'Content-Type': 'application/json', Origin: origin, Cookie: cookie }, body: body === undefined ? undefined : JSON.stringify(body) });
+  return { status: response.status, data: await response.json(), cookie: response.headers.get('set-cookie')?.split(';')[0] };
+}
+const input = { budget: 250000, objective: 'balanced', minimumScore: 10, mustFund: [], excluded: [], filters: { period: '2026-09', region: 'All', technology: 'All', state: 'All' } };
+assert.equal((await request('scenarios')).status, 401);
+assert.equal((await request('login', 'POST', { username: 'finance', password: 'wrong' })).status, 401);
+assert.equal((await request('login', 'POST', { username: 'finance', password: 'netone-local-demo' }, '', 'https://evil.invalid')).status, 403);
+const finance = await request('login', 'POST', { username: 'finance', password: 'netone-local-demo', role: 'Admin' });
+assert.equal(finance.data.user.role, 'Finance');
+assert.match(finance.cookie, /netone_session=/);
+const executive = await request('login', 'POST', { username: 'executive', password: 'netone-local-demo' });
+assert.equal((await request('scenarios', 'POST', { input }, executive.cookie)).status, 403);
+assert.equal((await request('run', 'POST', { input }, executive.cookie)).status, 403);
+assert.equal((await request('audit', 'GET', undefined, executive.cookie)).status, 403);
+assert.equal((await request('scenarios', 'GET', undefined, finance.cookie + 'tampered')).status, 401);
+assert.equal((await request('scenarios', 'POST', { input }, finance.cookie, 'https://evil.invalid')).status, 403);
+const saved = await request('scenarios', 'POST', { input, name: 'Backend boundary test', actor: 'forged', result: { spend: 1 }, candidates: [] }, finance.cookie);
+assert.equal(saved.status, 201);
+assert.notEqual(saved.data.scenario.result.spend, 1);
+const id = saved.data.scenario.id;
+assert.equal((await request('scenarios', 'GET', undefined, executive.cookie)).status, 200);
+assert.equal((await request('export', 'POST', {}, executive.cookie, base, id)).status, 403);
+assert.equal((await request('export', 'POST', {}, finance.cookie, base, id)).status, 200);
+const audit = await request('audit', 'GET', undefined, finance.cookie);
+const record = audit.data.audit.find(value => value.subject === id && value.action === 'SCENARIO_SAVED');
+assert.equal(record.actor, 'finance');
+assert.equal(record.role, 'Finance');
+assert.equal(record.evidenceHash.length, 64);
+assert.equal((await request('scenarios', 'POST', { input: { ...input, budget: -1 } }, finance.cookie)).status, 400);
+assert.equal((await request('logout', 'POST', {}, finance.cookie)).status, 200);
+assert.equal((await request('scenarios', 'GET', undefined, finance.cookie)).status, 401, 'signed token must be revoked on logout');
+for (const name of ['ops', 'billing', 'telemetry', 'sms']) assert.equal((await fetch(`${base}/api/${name}`)).status, 410);
+console.log('Backend boundaries passed: authentication, role spoofing, CSRF, tampering, authoritative recomputation, audit attribution, exports and logout revocation.');

@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const base = process.env.BASE_URL || 'http://127.0.0.1:5175';
+const existing = JSON.parse(fs.readFileSync('artifacts/qa/backend-test/store.json', 'utf8')).scenarios;
+assert.ok(existing.length > 0);
+const login = await fetch(`${base}/api/netone?action=login`, { method: 'POST', headers: { Origin: base, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'finance', password: 'netone-local-demo' }) });
+assert.equal(login.status, 200);
+const cookie = login.headers.get('set-cookie').split(';')[0];
+const response = await fetch(`${base}/api/netone?action=scenarios`, { headers: { Cookie: cookie } });
+assert.equal(response.status, 200);
+const current = (await response.json()).scenarios;
+assert.deepEqual(current, existing);
+console.log('All saved scenario evidence survived a separate server process restart.');

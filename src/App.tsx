@@ -1,326 +1,87 @@
-import { useEffect, useMemo, useState, lazy, Suspense } from 'react';
-import { Compass } from 'lucide-react';
-import NOCDashboard from './components/NOCDashboard';
-import Incidents from './components/Incidents';
-import FleetGrid from './components/FleetGrid';
-import FleetTable from './components/FleetTable';
-import ActionQueue from './components/ActionQueue';
-import ExecBriefing from './components/ExecBriefing';
-import SubscriberCare from './components/SubscriberCare';
-import PhoneSimulator from './components/PhoneSimulator';
-import ComplianceValue from './components/ComplianceValue';
-import ComplianceDossier from './components/ComplianceDossier';
-import DemoGuide from './components/DemoGuide';
-import AuditLogTable from './components/AuditLogTable';
-import Integration from './components/Integration';
-import type { GuideStep } from './components/DemoGuide';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
-import { useTowerTelemetry } from './hooks/useTowerTelemetry';
-import { useOpsPersistence } from './hooks/useOpsPersistence';
-import { calculateDynamicROI } from './lib/roi';
-import { exposureOf } from './lib/exposure';
-import type { AuditEntry } from './types';
-
-const GeoMap = lazy(() => import('./components/GeoMap'));
-
-type Tab = 'overview' | 'briefing' | 'fleet' | 'subscribers' | 'reports' | 'integration';
-type Feed = 'live' | 'grid-event';
-type Role = 'noc' | 'executive';
-type FleetView = 'grid' | 'table' | 'map';
-type SubscriberView = 'customer' | 'care';
-
-function useClock(): string {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+import { portfolio } from './data/portfolio';
+import { DATASET_VERSION, DEFAULT_FILTERS, STATES, decisionState, filterPortfolio, observation, summarise, usd } from './domain/portfolio';
+import type { PortfolioFilters, Site } from './domain/portfolio';
+import SiteInvestmentCase from './features/sites/SiteInvestmentCase';
+import InvestmentPriorities from './features/investments/InvestmentPriorities';
+import ScenarioSimulator from './features/scenarios/ScenarioSimulator';
+import EvidenceAudit from './features/evidence/EvidenceAudit';
+import { useSession } from './components/SessionGate';
+import { DEFAULT_WEIGHTS, generateCandidates, rankCandidates } from './domain/investments';
+import type { Weights } from './domain/investments';
+const InvestmentMap = lazy(() => import('./features/sites/InvestmentMap'));
+type View = 'portfolio' | 'sites' | 'map' | 'investments' | 'scenarios' | 'audit';
+function readLocation(): { view: View; site: string | null } {
+  const query = new URLSearchParams(window.location.search);
+  const view = query.get('view');
+  return { view: view === 'sites' || view === 'map' || view === 'investments' || view === 'scenarios' || view === 'audit' ? view : 'portfolio', site: query.get('site') };
 }
-
-export default function App() {
-  const [role, setRole] = useState<Role>(() => {
-    const q = new URLSearchParams(window.location.search);
-    return q.get('to') === 'fungai' || q.get('role') === 'executive' ? 'executive' : 'noc';
-  });
-  const [tab, setTab] = useState<Tab>(() => {
-    const q = new URLSearchParams(window.location.search);
-    return q.get('to') === 'fungai' || q.get('role') === 'executive' ? 'briefing' : 'overview';
-  });
-  const [feed, setFeed] = useState<Feed>('live');
-  const [module1, setModule1] = useState(true);
-  const [module2, setModule2] = useState(true);
-  const [fleetView, setFleetView] = useState<FleetView>('grid');
-  const [subscriberView, setSubscriberView] = useState<SubscriberView>('customer');
-  const [guideOpen, setGuideOpen] = useState(false);
-  const { assignments, audit, resolutions, synced, syncError, log, assign, resolve, deflect } = useOpsPersistence();
-  const clock = useClock();
-
-  // Assign with QoS shield guard + audit trail (mirrors previous local behaviour).
-  const handleAssign = (towerId: string, crew = 'Crew A — North') => {
-    if (!module1) return;
-    assign(towerId, crew);
-    const t = live.find((x) => x.id === towerId);
-    log('NOC Operator', 'Crew assigned', `${towerId} ${t ? t.name : ''} → ${crew}`);
-  };
-
-  const shedding = feed === 'grid-event';
-  const { towers: live, loading, error, lastUpdated, refresh } = useTowerTelemetry(shedding);
-
-  // Crew assignment marks dispatch only — live status stays until NOC confirms
-  // restoration via real telemetry. Assigned sites show blue outline in fleet view.
-  const towers = useMemo(() => live, [live]);
-
-  const roi = useMemo(() => calculateDynamicROI(towers, 0, module1, module2), [towers, module1, module2]);
-  const openCases = useMemo(() => towers.filter((t) => exposureOf(t) > 0 && !assignments.has(t.id)).length, [towers, assignments]);
-
-  const tabs: { id: Tab; label: string }[] =
-    role === 'executive'
-      ? [
-          { id: 'briefing', label: 'Briefing' },
-          { id: 'fleet', label: 'Tower fleet' },
-          { id: 'subscribers', label: 'Subscribers' },
-          { id: 'reports', label: 'Evidence' },
-          { id: 'integration', label: 'Integration' }
-        ]
-      : [
-          { id: 'overview', label: 'Overview' },
-          { id: 'fleet', label: 'Tower fleet' },
-          { id: 'subscribers', label: 'Subscribers' },
-          { id: 'reports', label: 'Reports' },
-          { id: 'integration', label: 'Integration' }
-        ];
-  const readOnly = role === 'executive';
-
-  const switchRole = (r: Role) => {
-    setRole(r);
-    setTab(r === 'executive' ? 'briefing' : 'overview');
-  };
-
-  const openGuideStep = (step: GuideStep) => {
-    setRole('noc');
-    setTab(step.action.tab);
-    if (step.action.fleetView) setFleetView(step.action.fleetView);
-    if (step.action.subscriberView) setSubscriberView(step.action.subscriberView);
-  };
-
-  return (
-    <ErrorBoundary>
-      <a href="#main-content" className="skip-link">Skip to main content</a>
-      <div className="min-h-screen">
-        <header className="sticky top-0 z-20 bg-gradient-to-r from-[#2D3187] via-[#2d358b] to-[#1e40af] text-white shadow-md">
-          {/* Top Row: Brand & Status & Role switcher */}
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2.5 px-3 py-2.5 sm:px-4 sm:py-3">
-            <div className="flex items-center gap-2.5 sm:gap-3">
-              <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg bg-[#e9222f] font-bold text-white shadow-sm" aria-hidden="true">E</div>
-              <div className="min-w-0">
-                <p className="truncate text-[10px] sm:text-[11px] font-semibold uppercase tracking-widest text-[#ffb3b8]">Econet Wireless · Harare pilot</p>
-                <h1 className="truncate text-sm sm:text-base font-bold leading-tight">Network compliance operations</h1>
-              </div>
-            </div>
-            <span className="sr-only" role="status">{openCases > 0 ? `${openCases} open compliance ${openCases === 1 ? 'case' : 'cases'}` : 'No open compliance cases'}</span>
-            
-            <div className="tnum flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-blue-200">
-              <div className="flex items-center gap-1.5 sm:gap-2 rounded-md bg-white/10 px-2 py-1 text-[11px] sm:text-xs">
-                <span className="flex items-center gap-1" title={error ? 'Cached telemetry feed' : 'Live telemetry feed'}>
-                  <span className={`inline-block h-2 w-2 rounded-full ${error ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-                  <span>{error ? 'Cached' : 'Live'}</span>
-                </span>
-                <span className="text-white/30" aria-hidden="true">·</span>
-                <span title="Ops state persistence" className="flex items-center gap-1">
-                  <span className={`inline-block h-2 w-2 rounded-full ${syncError ? 'bg-amber-400' : synced ? 'bg-emerald-400' : 'bg-sky-400 animate-pulse'}`} />
-                  <span>{syncError ? 'Offline' : synced ? 'Stored' : 'Syncing…'}</span>
-                </span>
-                <span className="text-white/30 hidden sm:inline" aria-hidden="true">·</span>
-                <span className="hidden sm:inline">{clock}</span>
-              </div>
-
-              <button
-                onClick={() => setGuideOpen(true)}
-                aria-haspopup="dialog"
-                className="flex items-center gap-1 rounded-md bg-white/10 px-2 py-1 text-xs font-semibold text-white hover:bg-white/20 active:scale-95 transition-all"
-              >
-                <Compass size={14} /> <span className="hidden sm:inline">Demo guide</span><span className="sm:hidden">Guide</span>
-              </button>
-
-              <span className="flex items-center gap-0.5 rounded-lg bg-white/10 p-0.5" role="group" aria-label="Acting role: NOC operational or Executive briefing">
-                <button
-                  onClick={() => switchRole('noc')}
-                  className={`min-h-[30px] sm:min-h-[32px] rounded px-2.5 py-1 text-xs font-semibold transition-all ${role === 'noc' ? 'bg-white text-[#2d358b] shadow-sm' : 'text-blue-200 hover:text-white'}`}
-                >
-                  NOC
-                </button>
-                <button
-                  onClick={() => switchRole('executive')}
-                  className={`min-h-[30px] sm:min-h-[32px] rounded px-2.5 py-1 text-xs font-semibold transition-all ${role === 'executive' ? 'bg-[#c80f22] text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
-                >
-                  Executive
-                </button>
-              </span>
-            </div>
-          </div>
-
-          {/* Navigation Tabs & Feed Switcher Row */}
-          <div className="border-t border-white/10 bg-black/10">
-            <div className="mx-auto flex max-w-6xl flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 px-3 py-1.5 sm:px-4">
-              <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar touch-scroll py-0.5 -mx-1 px-1" aria-label="Primary">
-                {tabs.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    aria-current={tab === t.id ? 'page' : undefined}
-                    className={`whitespace-nowrap shrink-0 rounded-lg px-2.5 py-1.5 sm:px-3 text-xs sm:text-sm font-semibold transition-colors ${tab === t.id ? 'bg-white text-[#2d358b] shadow-sm' : 'text-blue-200 hover:bg-white/10 hover:text-white'}`}
-                  >
-                    {t.label}
-                    {t.id === 'overview' && openCases > 0 && (
-                      <span className="tnum ml-1.5 rounded bg-red-600 px-1.5 py-0.5 text-[10px] sm:text-xs text-white font-bold">{openCases}</span>
-                    )}
-                  </button>
-                ))}
-              </nav>
-              <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto rounded-lg bg-white/10 p-0.5 text-xs" role="group" aria-label="Network feed">
-                <button
-                  onClick={() => setFeed('live')}
-                  className={`rounded px-2 py-1 font-semibold transition-colors ${feed === 'live' ? 'bg-white text-[#2d358b] shadow-sm' : 'text-blue-200 hover:text-white'}`}
-                >
-                  Live feed
-                </button>
-                <button
-                  onClick={() => setFeed('grid-event')}
-                  className={`rounded px-2 py-1 font-semibold transition-colors ${feed === 'grid-event' ? 'bg-amber-400 text-[#2d358b] shadow-sm' : 'text-blue-200 hover:text-white'}`}
-                >
-                  Grid replay
-                </button>
-              </div>
-            </div>
-          </div>
-        </header>
-
-
-        <main id="main-content" tabIndex={-1} className="mx-auto max-w-6xl space-y-4 p-4">
-          {feed === 'grid-event' && (
-            <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900" role="status">
-              <span className="font-bold">REPLAY</span> — ZESA 14:00 load-shedding schedule. Crew assignments made here are logged as drill actions.
-              {error && ' Telemetry service unreachable; showing last cached snapshot.'}
-            </p>
-          )}
-
-          {tab === 'overview' && (
-            <>
-              <NOCDashboard towers={towers} openCases={openCases} />
-              <div className="grid gap-4 lg:grid-cols-2">
-                <Incidents towers={towers} />
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
-                  <p className="font-bold text-slate-900">Control layer status</p>
-                  <p className="mt-1 text-slate-600">Read-only sidecar on OCS + NOC feeds. No write path to switches or charging — a failure here cannot drop a call or corrupt billing.</p>
-                  <p className="tnum mt-2 text-xs text-slate-500">
-                    Last sync {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—'}
-                    {loading ? ' · syncing…' : ''} · HMAC-SHA256 PII gateway · TLS 1.3 / AES-256
-                    {!loading && !error && (
-                      <button onClick={refresh} className="ml-2 underline">Refresh now</button>
-                    )}
-                  </p>
-                  <div className="mt-2 flex gap-4 text-xs">
-                    <label className="flex items-center gap-1"><input type="checkbox" checked={module1} onChange={(e) => setModule1(e.target.checked)} /> QoS shield active</label>
-                    <label className="flex items-center gap-1"><input type="checkbox" checked={module2} onChange={(e) => setModule2(e.target.checked)} /> Care deflection active</label>
-                  </div>
-                </div>
-              </div>
-              <ActionQueue towers={towers} assignments={assignments} onAssign={handleAssign} readOnly={readOnly} />
-            </>
-          )}
-
-          {tab === 'briefing' && (
-            <ExecBriefing towers={towers} roi={roi} resolutions={resolutions} audit={audit} lastUpdated={lastUpdated} />
-          )}
-
-          {tab === 'fleet' && (
-            <>
-              <div className="flex items-center gap-1 rounded-lg bg-white/80 p-1 text-xs shadow-sm" role="group" aria-label="Fleet view">
-                <button onClick={() => setFleetView('grid')} className={`rounded px-2.5 py-1 font-semibold ${fleetView === 'grid' ? 'bg-[#2d358b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-                  Grid
-                </button>
-                <button onClick={() => setFleetView('table')} className={`rounded px-2.5 py-1 font-semibold ${fleetView === 'table' ? 'bg-[#2d358b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-                  Table
-                </button>
-                <button onClick={() => setFleetView('map')} className={`rounded px-2.5 py-1 font-semibold ${fleetView === 'map' ? 'bg-[#2d358b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-                  Map
-                </button>
-              </div>
-              {fleetView === 'map' ? (
-                <Suspense fallback={<div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm">Loading map…</div>}>
-                  <GeoMap towers={towers} />
-                </Suspense>
-              ) : fleetView === 'table' ? (
-                <FleetTable towers={towers} assignments={assignments} onAssign={(id) => handleAssign(id)} readOnly={readOnly} />
-              ) : (
-                <FleetGrid towers={towers} loading={loading} assignments={assignments} onAssign={(id) => handleAssign(id)} readOnly={readOnly} />
-              )}
-            </>
-          )}
-
-          {tab === 'subscribers' && (
-            <>
-              <div className="flex items-center gap-1 rounded-lg bg-white/80 p-1 text-xs shadow-sm" role="group" aria-label="Subscriber view">
-                <button onClick={() => setSubscriberView('customer')} className={`rounded px-2.5 py-1 font-semibold ${subscriberView === 'customer' ? 'bg-[#2d358b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-                  Customer journey
-                </button>
-                <button onClick={() => setSubscriberView('care')} className={`rounded px-2.5 py-1 font-semibold ${subscriberView === 'care' ? 'bg-[#2d358b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-                  Care desk
-                </button>
-              </div>
-              {subscriberView === 'customer' ? (
-                <PhoneSimulator onDeflect={deflect} />
-              ) : (
-                <SubscriberCare onResolve={resolve} readOnly={readOnly} />
-              )}
-            </>
-          )}
-
-          {tab === 'reports' && (
-            <>
-              <ComplianceDossier towers={towers} audit={audit} resolutions={resolutions} module1={module1} module2={module2} />
-              <ComplianceValue roi={roi} towers={towers} resolutions={resolutions} module1={module1} module2={module2} />
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="Shift audit log">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="font-bold text-slate-900">Shift audit log · <span className="tnum">{audit.length}</span></h2>
-                  {audit.length > 0 && (
-                    <button
-                      onClick={() => {
-                        const csv = ['time,actor,action,detail', ...audit.map((a) => `${a.time},${a.actor},${a.action},"${a.detail.replace(/"/g, '""')}"`)].join('\n');
-                        const blob = new Blob([csv], { type: 'text/csv' });
-                        const el = document.createElement('a');
-                        el.href = URL.createObjectURL(blob);
-                        el.download = `shift-audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
-                        el.click();
-                        URL.revokeObjectURL(el.href);
-                      }}
-                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold"
-                    >
-                      Export audit CSV
-                    </button>
-                  )}
-                </div>
-                {audit.length === 0 ? (
-                  <p className="mt-2 text-sm text-slate-500">No actions logged this shift. Crew assignments and care resolutions appear here for POTRAZ filing.</p>
-                ) : (
-                  <AuditLogTable audit={audit} />
-                )}
-                <p className="mt-2 text-[11px] text-slate-500">
-                  Basis: SI 154 fines US$5,000 base + US$5,000/hr over 3 hrs, US$200/tower-month; model baseline 10,000 calls/mo, 15% billing-related, 30% deflection, 75% shielding — validate against Econet NOC and call-centre records before filing.
-                </p>
-              </section>
-            </>
-          )}
-
-          {tab === 'integration' && <Integration />}
-        </main>
-
-        <footer className="tnum mx-auto max-w-6xl px-4 pb-8 text-[11px] text-slate-500">
-          RadBit compliance sidecar · pilot v1.0 · {lastUpdated ? `synced ${new Date(lastUpdated).toLocaleString()}` : 'awaiting first sync'}
-        </footer>
-      </div>
-      <DemoGuide open={guideOpen} onClose={() => setGuideOpen(false)} onNavigate={openGuideStep} />
-    </ErrorBoundary>
-  );
+export default function App() { const { user, signOut } = useSession();
+  const [route, setRoute] = useState(readLocation);
+  const [filters, setFilters] = useState<PortfolioFilters>(DEFAULT_FILTERS);
+  const [weights, setWeights] = useState<Weights>({ ...DEFAULT_WEIGHTS });
+  const sites = useMemo(() => filterPortfolio(portfolio, filters), [filters]);
+  const priorities = useMemo(() => rankCandidates(generateCandidates(sites, filters.period, weights)).filter(candidate => candidate.eligible), [sites, filters.period, weights]);
+  const totals = summarise(sites, filters.period);
+  const selected = portfolio.find(site => site.id === route.site);
+  useEffect(() => {
+    const onPop = () => setRoute(readLocation());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  function navigate(view: View, site: string | null = null) {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.searchParams.set('view', view);
+    if (site) url.searchParams.set('site', site);
+    window.history.pushState({}, '', url);
+    setRoute({ view, site });
+    window.scrollTo({ top: 0 });
+  }
+  function choose<K extends keyof PortfolioFilters>(key: K, value: PortfolioFilters[K]) {
+    setFilters(current => ({ ...current, [key]: value }));
+  }
+  const openSite = (site: Site) => navigate(route.view, site.id);
+  return <ErrorBoundary>
+    <a className="skip-link" href="#main-content">Skip to content</a>
+    <header className="netone-header">
+      <div className="netone-shell brand-row"><div className="brand-lockup"><span className="brand-mark" aria-hidden="true">N</span><div><p className="eyebrow">NETONE · FINANCE & TECHNOLOGY</p><h1>Network Investment Intelligence</h1></div></div><div><span className="demo-badge">SYNTHETIC · {user.role}</span><button className="ml-4 text-xs" onClick={() => signOut().catch(error => alert(error.message))}>Sign out</button></div></div>
+      <nav className="netone-shell nav-row" aria-label="Primary">{([['portfolio', 'Executive portfolio'], ['sites', 'Site portfolio'], ['map', 'Investment map'], ['investments', 'Capital priorities'], ['scenarios', 'Capital scenarios'], ['audit', 'Evidence audit']] as const).map(([view, label]) => <button key={view} aria-current={route.view === view ? 'page' : undefined} onClick={() => navigate(view)}>{label}</button>)}</nav>
+    </header>
+    <main className="netone-shell main-area" id="main-content" tabIndex={-1}>
+      <p className="data-notice">Demonstration data only. All assets, financial values, intervention costs and scoring policy are fictional. Recommendations are advisory. Scenario allocations are advisory and saved through the authenticated server.</p>
+      <section className="filter-bar" aria-label="Portfolio filters">
+        <label>Region<select aria-label="Region" value={filters.region} onChange={event => choose('region', event.target.value)}><option>All</option>{Array.from(new Set(portfolio.map(site => site.region))).map(region => <option key={region}>{region}</option>)}</select></label>
+        <label>Technology<select aria-label="Technology" value={filters.technology} onChange={event => choose('technology', event.target.value)}><option>All</option>{['3G', '4G', '5G'].map(value => <option key={value}>{value}</option>)}</select></label>
+        <label>Decision state<select aria-label="Decision state" value={filters.state} onChange={event => choose('state', event.target.value)}><option>All</option>{STATES.map(state => <option key={state}>{state}</option>)}</select></label>
+        <label>Reporting month<select aria-label="Reporting month" value={filters.period} onChange={event => choose('period', event.target.value as PortfolioFilters['period'])}><option value="2026-09">September 2026</option><option value="2026-08">August 2026</option></select></label>
+        <button className="text-button" onClick={() => setFilters(DEFAULT_FILTERS)}>Reset filters</button>
+      </section>
+      {route.site ? selected ? <SiteInvestmentCase site={selected} period={filters.period} weights={weights} onBack={() => navigate(route.view)} /> : <section className="panel"><h2>Site not found</h2><button className="primary-button" onClick={() => navigate('sites')}>Return to sites</button></section> : route.view === 'audit' ? <EvidenceAudit /> : route.view === 'scenarios' ? <ScenarioSimulator sites={sites} filters={filters} weights={weights} /> : route.view === 'investments' ? <InvestmentPriorities sites={sites} period={filters.period} weights={weights} onWeights={setWeights} onSite={openSite} /> : <>
+        <div className="page-heading"><div><p className="eyebrow">CAPITAL PORTFOLIO / {filters.period}</p><h2>{route.view === 'portfolio' ? 'Where should the next dollar go?' : route.view === 'map' ? 'Investment map' : 'Site portfolio'}</h2><p>Connect capital, capacity and recurring operating burden.</p></div><span className="record-count" aria-live="polite">{sites.length} of 100 sites</span></div>
+        {route.view === 'portfolio' && <>
+          <section className="metric-strip" aria-label="Portfolio summary">
+            <button onClick={() => navigate('sites')}><span>Capital deployed</span><strong>{usd(totals.capex)}</strong><small>Cumulative synthetic CAPEX at month end</small></button>
+            <button onClick={() => navigate('sites')}><span>Monthly operating cost</span><strong>{usd(totals.opex)}</strong><small>Selected reporting month</small></button>
+            <button onClick={() => navigate('sites')}><span>Commercial contribution proxy</span><strong>{totals.contributionKnown ? usd(totals.contribution) : 'Unavailable'}</strong><small>{totals.contributionKnown}/{totals.count} sites with values · missing values excluded</small></button>
+            <button onClick={() => navigate('sites')}><span>Recurring failure cost</span><strong>{usd(totals.burden)}</strong><small>Included in OPEX · do not add twice</small></button>
+          </section>
+          <div className="portfolio-layout"><section className="panel"><div className="section-heading"><h3>Portfolio decision states</h3><span>One primary state per site</span></div><div className="state-list">{STATES.map(state => {
+            const count = sites.filter(site => decisionState(site, observation(site, filters.period)) === state).length;
+            return <button key={state} onClick={() => { choose('state', state); navigate('sites'); }}><span>{state}</span><div className="state-track"><i style={{ width: `${sites.length ? count / sites.length * 100 : 0}%` }} /></div><strong>{count}</strong></button>;
+          })}</div><p className="subtle">Demo classification: reliability first, then capacity, inclusion, under-utilisation and monitor. These thresholds are not approved NetOne policy.</p></section>
+          <section className="review-panel"><p className="eyebrow">EVIDENCE BEFORE ALLOCATION</p><h3>{totals.incomplete} sites need data review</h3><p>Missing values, stale utilisation or conflicting sources can change the investment case.</p><button className="primary-button" onClick={() => navigate('sites')}>Inspect site evidence →</button><p className="subtle">No capital recommendations are approved or executed by this prototype.</p></section></div>
+          <section className="panel mb-6"><div className="section-heading"><h3>Leading investment candidates</h3><button className="text-button" onClick={() => navigate('investments')}>Review all capital priorities →</button></div>{priorities.slice(0, 3).map(candidate => <div className="priority-preview" key={candidate.id}><button className="site-link" onClick={() => navigate('investments', candidate.siteId)}>{candidate.siteId} · {candidate.action}</button><span>{usd(candidate.estimatedCost)} estimated cost</span><strong>{candidate.score!.toFixed(2)} / 100</strong></div>)}{!priorities.length && <p>No eligible recommendations for the selected evidence.</p>}<p className="subtle">Relative priority under the active demo weights; intervention benefits remain unvalidated.</p></section>
+        </>}
+        {route.view === 'map' && <Suspense fallback={<section className="panel">Loading investment map…</section>}><InvestmentMap sites={sites} period={filters.period} onSelect={openSite} /></Suspense>}
+        <section className="panel"><div className="section-heading"><h3>{route.view === 'portfolio' ? 'Sites for investment review' : 'Selected site evidence'}</h3><span>USD · synthetic monthly aggregates</span></div>
+          {sites.length === 0 ? <p className="empty-state">No sites match these filters. Reset filters to restore the portfolio.</p> : <div className="table-scroll"><table className="investment-table"><thead><tr><th>Site / region</th><th>Technology</th><th>Utilisation</th><th>Availability</th><th>Monthly OPEX</th><th>Decision state</th><th>Evidence</th></tr></thead><tbody>{sites.map(site => {
+            const row = observation(site, filters.period);
+            return <tr key={site.id}><td><button className="site-link" onClick={() => openSite(site)}>{site.id} · {site.name}</button><small>{site.region}</small></td><td>{site.technology}</td><td>{row.utilisation === null ? 'Unavailable' : `${row.utilisation}%`}</td><td>{row.availability.toFixed(1)}%</td><td>{usd(row.opex)}</td><td><span className="state-label">{decisionState(site, row)}</span></td><td><span className={`quality ${row.quality === 'COMPLETE' ? 'complete' : 'warning'}`}>{row.quality}</span></td></tr>;
+          })}</tbody></table></div>}
+        </section>
+      </>}
+    </main><footer className="netone-shell footer">RadBit Studios · NetOne executive prototype · {DATASET_VERSION} · Local synthetic fixture · No operator systems connected</footer>
+  </ErrorBoundary>;
 }

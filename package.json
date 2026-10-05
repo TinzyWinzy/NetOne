@@ -1,5 +1,5 @@
 {
-  "name": "econet-compliance-poc",
+  "name": "netone-investment-intelligence",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -7,11 +7,17 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "migrate": "node db/migrate.mjs",
-    "seed:subscribers": "node db/seed-subscribers.mjs",
-    "verify:db": "node db/verify.mjs",
-    "reset:db": "node db/reset.mjs",
-    "e2e": "node e2e/smoke.mjs"
+    "migrate": "node db/migrate-netone.mjs",
+    "e2e": "node e2e/netone.mjs",
+    "test:portfolio": "node tests/portfolio.mjs",
+    "e2e:netone": "node e2e/netone.mjs",
+    "test:investments": "node tests/investments.mjs",
+    "e2e:investments": "node e2e/investments.mjs",
+    "test:scenarios": "node tests/scenarios.mjs",
+    "e2e:scenarios": "node e2e/scenarios.mjs",
+    "migrate:netone": "node db/migrate-netone.mjs",
+    "test:backend": "node tests/backend.mjs",
+    "e2e:governance": "node e2e/governance.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

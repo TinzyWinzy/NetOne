@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
 
 const DEFAULT_PIN = '1212';
 const PIN = (import.meta.env.VITE_DEMO_PIN as string | undefined) || DEFAULT_PIN;
-const STORAGE_KEY = 'econet-demo-unlocked';
+const STORAGE_KEY = 'netone-demo-unlocked';
 
 export default function DemoGate({ children }: { children: ReactNode }) {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(STORAGE_KEY) === '1');
@@ -30,17 +30,17 @@ export default function DemoGate({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#2d358b] p-4">
+    <div className="flex min-h-screen items-center justify-center bg-[#173d3b] p-4">
       <form
         onSubmit={submit}
         className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
         aria-label="Demo access"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#e9222f] font-bold text-white">E</div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#bd4b08] font-bold text-white">N</div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#c80f22]">Econet Wireless · Harare pilot</p>
-            <h1 className="text-base font-bold leading-tight text-slate-900">Network compliance operations</h1>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#bd4b08]">NetOne · Executive prototype</p>
+            <h1 className="text-base font-bold leading-tight text-slate-900">Network Investment Intelligence</h1>
           </div>
         </div>
 
@@ -58,7 +58,7 @@ export default function DemoGate({ children }: { children: ReactNode }) {
             setError(false);
           }}
           placeholder="••••"
-          className="tnum mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-2xl tracking-[0.5em] focus:border-[#e9222f] focus:outline-none focus:ring-2 focus:ring-[#e9222f]/30"
+          className="tnum mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-2xl tracking-[0.5em] focus:border-[#bd4b08] focus:outline-none focus:ring-2 focus:ring-[#bd4b08]/30"
           aria-invalid={error}
         />
 
@@ -70,7 +70,7 @@ export default function DemoGate({ children }: { children: ReactNode }) {
 
         <button
           type="submit"
-          className="mt-4 w-full rounded-lg bg-[#2d358b] py-2.5 font-semibold text-white transition hover:bg-[#3a43a6]"
+          className="mt-4 w-full rounded-lg bg-[#173d3b] py-2.5 font-semibold text-white transition hover:bg-[#225550]"
         >
           Unlock console
         </button>

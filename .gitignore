@@ -11,5 +11,10 @@ Thumbs.db
 
 # logs + test artifacts
 *.log
+artifacts/qa/
+.netone-data/
 
 .vercel
+
+.env.*
+!.env.example
