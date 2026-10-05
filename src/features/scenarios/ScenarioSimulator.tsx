@@ -62,7 +62,7 @@ export default function ScenarioSimulator({ sites, filters, weights }: { sites: 
   </div>;
 }
 function AllocationTable({ result, selectedOnly = false }: { result: ScenarioResult; selectedOnly?: boolean }) {
-  return <div className="table-scroll candidate-list"><table className="investment-table"><thead><tr><th>Site / intervention</th><th>Cost</th><th>Objective points</th><th>Allocation reason</th></tr></thead><tbody>{result.allocations.filter(allocation => !selectedOnly || allocation.selected).sort((a, b) => Number(b.selected) - Number(a.selected)).map(allocation => {
+  return <div className="table-scroll candidate-list" tabIndex={0} role="region" aria-label="Scrollable scenario allocation"><table className="investment-table"><thead><tr><th>Site / intervention</th><th>Cost</th><th>Objective points</th><th>Allocation reason</th></tr></thead><tbody>{result.allocations.filter(allocation => !selectedOnly || allocation.selected).sort((a, b) => Number(b.selected) - Number(a.selected)).map(allocation => {
     const candidate = result.candidates.find(value => value.id === allocation.candidateId)!;
     return <tr key={allocation.candidateId}><td>{candidate.siteId} · {candidate.action}</td><td>{usd(allocation.cost)}</td><td>{allocation.objectiveScore.toFixed(2)}</td><td><strong>{allocation.selected ? 'Selected' : 'Excluded'}</strong><p className="subtle">{allocation.reason}</p></td></tr>;
   })}</tbody></table></div>;

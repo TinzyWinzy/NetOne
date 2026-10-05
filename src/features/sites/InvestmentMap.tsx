@@ -27,9 +27,9 @@ export default function InvestmentMap({ sites, period, onSelect }: { sites: Site
     const bounds = new maplibregl.LngLatBounds();
     const markers = sites.map(site => {
       const row = observation(site, period);
-      const color = mode === 'reliability' ? row.availability < 98 ? '#b45309' : '#16746b'
-        : mode === 'quality' ? row.quality === 'COMPLETE' ? '#16746b' : '#b45309'
-        : row.utilisation === null ? '#64748b' : row.utilisation >= 80 ? '#b45309' : '#16746b';
+      const color = mode === 'reliability' ? row.availability < 98 ? '#f97315' : '#18181a'
+        : mode === 'quality' ? row.quality === 'COMPLETE' ? '#18181a' : '#f97315'
+        : row.utilisation === null ? '#64748b' : row.utilisation >= 80 ? '#f97315' : '#18181a';
       const button = document.createElement('button');
       button.className = 'tower-marker';
       button.style.background = color;
@@ -42,5 +42,5 @@ export default function InvestmentMap({ sites, period, onSelect }: { sites: Site
     if (sites.length) instance.fitBounds(bounds, { padding: 50, duration: 0, maxZoom: 11 });
     return () => markers.forEach(marker => marker.remove());
   }, [sites, period, mode, onSelect]);
-  return <section className="panel" aria-label="Investment map"><div className="section-heading"><h3>Geographic evidence</h3><label>Colour by <select value={mode} onChange={event => setMode(event.target.value)}><option value="utilisation">Utilisation</option><option value="reliability">Reliability</option><option value="quality">Evidence quality</option></select></label></div><p className="subtle">Amber: capacity ≥80%, availability below 98%, or incomplete evidence in the selected mode. Teal: other observed values. Grey: unavailable utilisation.</p><div ref={container} className="investment-map" />{error && <p role="status" className="data-notice">Map imagery is unavailable. The site table below contains the same filtered evidence.</p>}<p className="subtle">Fictional regional site locations. Click a marker to open its investment case; use the site table for keyboard access. Background tiles require internet.</p></section>;
+  return <section className="panel" aria-label="Investment map"><div className="section-heading"><h3>Geographic evidence</h3><label>Colour by <select value={mode} onChange={event => setMode(event.target.value)}><option value="utilisation">Utilisation</option><option value="reliability">Reliability</option><option value="quality">Evidence quality</option></select></label></div><p className="subtle">Orange: capacity ≥80%, availability below 98%, or incomplete evidence in the selected mode. Black: other observed values. Grey: unavailable utilisation.</p><div ref={container} className="investment-map" />{error && <p role="status" className="data-notice">Map imagery is unavailable. The site table below contains the same filtered evidence.</p>}<p className="subtle">Fictional regional site locations. Click a marker to open its investment case; use the site table for keyboard access. Background tiles require internet.</p></section>;
 }
