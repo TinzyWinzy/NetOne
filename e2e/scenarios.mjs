@@ -34,7 +34,7 @@ try {
   assert.match(await page.locator('main').innerText(), /Snapshot replay matches/);
   await page.getByLabel('Capital budget', { exact: true }).fill('0');
   await page.getByRole('button', { name: 'Run scenario', exact: true }).click();
-  assert.match(await page.getByRole('region', { name: 'Scenario result' }).innerText(), /Spent \$0/);
+  assert.match(await page.getByRole('region', { name: 'Scenario result' }).innerText(), /Proposed allocation \$0/);
   await page.getByText('Must-fund and exclusion constraints', { exact: true }).click();
   const candidateId = await page.getByLabel('Must fund', { exact: true }).locator('option').first().getAttribute('value');
   await page.getByLabel('Must fund', { exact: true }).selectOption(candidateId);
