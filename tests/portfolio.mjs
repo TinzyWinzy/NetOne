@@ -5,7 +5,7 @@ const compile = path => ts.transpileModule(fs.readFileSync(path, 'utf8'), { comp
 const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 const domainUrl = moduleUrl(compile('src/domain/portfolio.ts'));
 const domain = await import(domainUrl);
-const { buildPortfolio } = await import(moduleUrl(compile('src/data/portfolio.ts').replace("'../domain/portfolio'", JSON.stringify(domainUrl))));
+const { buildPortfolio } = await import(moduleUrl(compile('src/data/portfolio.ts').replace("'../domain/portfolio.js'", JSON.stringify(domainUrl))));
 const sites = buildPortfolio();
 assert.equal(sites.length, 100);
 assert.equal(new Set(sites.map(site => site.id)).size, 100);
@@ -30,3 +30,4 @@ assert.equal(domain.summarise([], '2026-09').capex, 0);
 assert.equal(domain.usd(null), 'Unavailable');
 assert.ok(Math.abs(sites.find(site => site.region === 'Bulawayo').latitude + 20.15) < .2);
 console.log('Portfolio invariants passed: deterministic seed, states, filters, totals, missing data and geography.');
+

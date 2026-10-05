@@ -1,6 +1,6 @@
-import { COMPONENTS, DEFAULT_WEIGHTS } from './investments';
-import type { Candidate, Weights } from './investments';
-import type { PortfolioFilters } from './portfolio';
+import { COMPONENTS, DEFAULT_WEIGHTS } from './investments.js';
+import type { Candidate, Weights } from './investments.js';
+import type { PortfolioFilters } from './portfolio.js';
 export const ENGINE_VERSION = 'greedy-demo-0.3';
 export const OBJECTIVES: Record<string, { label: string; weights: Weights }> = {
   balanced: { label: 'Balanced', weights: DEFAULT_WEIGHTS },
@@ -54,3 +54,4 @@ export function allocateScenario(candidates: Candidate[], input: ScenarioInput):
   ranked.forEach(candidate => choose(candidate, false));
   return structuredClone({ engineVersion: ENGINE_VERSION, input, objectiveWeights: objective.weights, candidates, allocations, spend: spent / 100, unallocated: (budget - spent) / 100, objectiveValue: allocations.filter(value => value.selected).reduce((sum, value) => sum + value.objectiveScore, 0) });
 }
+

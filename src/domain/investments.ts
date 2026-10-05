@@ -1,5 +1,5 @@
-import { DATASET_VERSION, observation, decisionState } from './portfolio';
-import type { Period, Site } from './portfolio';
+import { DATASET_VERSION, observation, decisionState } from './portfolio.js';
+import type { Period, Site } from './portfolio.js';
 
 export const MODEL_VERSION = 'priority-demo-0.2';
 export const COMPONENTS = [
@@ -89,3 +89,4 @@ export function rankCandidates(candidates: Candidate[]): Candidate[] {
   return [...candidates].sort((a, b) => Number(b.eligible) - Number(a.eligible)
     || (b.score ?? -1) - (a.score ?? -1) || a.estimatedCost - b.estimatedCost || a.id.localeCompare(b.id, 'en'));
 }
+

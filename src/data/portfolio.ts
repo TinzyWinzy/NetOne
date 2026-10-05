@@ -1,5 +1,5 @@
-import type { Site, Observation } from '../domain/portfolio';
-import { PERIODS } from '../domain/portfolio';
+import type { Site, Observation } from '../domain/portfolio.js';
+import { PERIODS } from '../domain/portfolio.js';
 
 const REGIONS = [
   { name: 'Harare', lat: -17.825, lon: 31.033 },
@@ -42,3 +42,4 @@ export function buildPortfolio(): Site[] {
   });
 }
 export const portfolio = buildPortfolio();
+

@@ -4,8 +4,8 @@ import ts from 'typescript';
 const compile = path => ts.transpileModule(fs.readFileSync(path, 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText;
 const url = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 const portfolioUrl = url(compile('src/domain/portfolio.ts'));
-const engine = await import(url(compile('src/domain/investments.ts').replace("'./portfolio'", JSON.stringify(portfolioUrl))));
-const { buildPortfolio } = await import(url(compile('src/data/portfolio.ts').replace("'../domain/portfolio'", JSON.stringify(portfolioUrl))));
+const engine = await import(url(compile('src/domain/investments.ts').replace("'./portfolio.js'", JSON.stringify(portfolioUrl))));
+const { buildPortfolio } = await import(url(compile('src/data/portfolio.ts').replace("'../domain/portfolio.js'", JSON.stringify(portfolioUrl))));
 const sites = buildPortfolio();
 const { generateCandidates, rankCandidates, DEFAULT_WEIGHTS, validateWeights } = engine;
 const candidates = generateCandidates(sites, '2026-09');
@@ -45,3 +45,4 @@ copiedWeights.demand = 0;
 assert.equal(snapshot[0].weights.demand, 20);
 assert.deepEqual(JSON.parse(JSON.stringify(candidates)), candidates, 'evidence serialisation preserves reconstruction inputs');
 console.log('Investment invariants passed: reconstruction, bounds, deterministic ranking, eligibility, abstention, weight validation, sensitivity and snapshots.');
+

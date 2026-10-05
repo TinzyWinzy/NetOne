@@ -4,10 +4,10 @@ import ts from 'typescript';
 const compile = path => ts.transpileModule(fs.readFileSync(path, 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText;
 const url = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 const p = url(compile('src/domain/portfolio.ts'));
-const i = url(compile('src/domain/investments.ts').replace("'./portfolio'", JSON.stringify(p)));
+const i = url(compile('src/domain/investments.ts').replace("'./portfolio.js'", JSON.stringify(p)));
 const { generateCandidates } = await import(i);
-const { buildPortfolio } = await import(url(compile('src/data/portfolio.ts').replace("'../domain/portfolio'", JSON.stringify(p))));
-const { allocateScenario, OBJECTIVES } = await import(url(compile('src/domain/scenarios.ts').replace("'./investments'", JSON.stringify(i))));
+const { buildPortfolio } = await import(url(compile('src/data/portfolio.ts').replace("'../domain/portfolio.js'", JSON.stringify(p))));
+const { allocateScenario, OBJECTIVES } = await import(url(compile('src/domain/scenarios.ts').replace("'./investments.js'", JSON.stringify(i))));
 const candidates = generateCandidates(buildPortfolio(), '2026-09');
 const input = { budget: 250000, objective: 'balanced', minimumScore: 10, mustFund: [], excluded: [], filters: { region: 'All', technology: 'All', state: 'All', period: '2026-09' } };
 for (const objective of Object.keys(OBJECTIVES)) for (const budget of [0, 999, 12000, 250000, 10000000]) {
@@ -46,3 +46,4 @@ candidates[0].estimatedCost = 1;
 input.budget = 0;
 assert.equal(JSON.stringify(result), preserved);
 console.log('Scenario invariants passed: budgets, eligibility, conflicts, infeasibility, objectives, constraints, monetary precision and immutable replay.');
+

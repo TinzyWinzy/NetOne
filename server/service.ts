@@ -1,11 +1,11 @@
 import { createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
-import { portfolio } from '../src/data/portfolio';
-import { filterPortfolio, PERIODS, STATES } from '../src/domain/portfolio';
-import { generateCandidates } from '../src/domain/investments';
-import { allocateScenario } from '../src/domain/scenarios';
-import type { ScenarioInput, SavedScenario } from '../src/domain/scenarios';
-import { commit, listScenarios, listAudit, isRevoked } from './repository';
-import { databaseUrl } from './database';
+import { portfolio } from '../src/data/portfolio.js';
+import { filterPortfolio, PERIODS, STATES } from '../src/domain/portfolio.js';
+import { generateCandidates } from '../src/domain/investments.js';
+import { allocateScenario } from '../src/domain/scenarios.js';
+import type { ScenarioInput, SavedScenario } from '../src/domain/scenarios.js';
+import { commit, listScenarios, listAudit, isRevoked } from './repository.js';
+import { databaseUrl } from './database.js';
 export type Role = 'Executive' | 'Finance' | 'Network' | 'Regulatory' | 'Admin';
 export interface Identity { username: string; role: Role }
 interface Account extends Identity { salt: string; hash: string }
@@ -110,4 +110,5 @@ export async function handleNetOne(request: RequestData): Promise<ResponseData> 
     return { status: 404, body: { error: 'Operation not found.' } };
   } catch { return { status: 503, body: { error: 'NetOne service unavailable. Check dedicated backend configuration and storage.' } }; }
 }
+
 

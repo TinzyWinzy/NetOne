@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { neon } from '@neondatabase/serverless';
-import { databaseUrl } from './database';
-import type { SavedScenario } from '../src/domain/scenarios';
+import { databaseUrl } from './database.js';
+import type { SavedScenario } from '../src/domain/scenarios.js';
 export interface AuditRecord { id: string; actor: string; role: string; action: string; subject: string; occurredAt: string; evidenceHash: string }
 interface Store { scenarios: SavedScenario[]; audit: AuditRecord[]; revoked?: { hash: string; expires: string }[] }
 let queue: Promise<unknown> = Promise.resolve();
@@ -45,3 +45,4 @@ export async function commit(audit: AuditRecord, scenario?: SavedScenario, revok
   });
   queue = operation.catch(() => undefined); await operation;
 }
+
