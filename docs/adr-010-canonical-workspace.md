@@ -1,6 +1,6 @@
 # ADR-010: Canonical workspace and controlled prototype governance
 
-Status: implemented; release validation pending.
+Status: deployed; synthetic production workflows and post-redeployment persistence verified on 5 October 2026.
 
 Retain Vite and the authenticated Vercel API. Dedicated Neon holds an optimistic revision-controlled workspace plus relational projections for sites, metric observations, financials, interventions, mappings, incidents/events, rule versions/evaluations, policy versions, candidate evidence/candidates/components, import runs, reviews and scoring runs. Migration 002 is additive and preserves existing scenario/audit/revocation tables. External app IDs map deterministically to UUID database IDs.
 

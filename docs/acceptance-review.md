@@ -22,7 +22,7 @@ This is a synthetic prototype acceptance record, not NetOne policy or enterprise
 | PRD-AUTH-001 | Five role policies; signed HttpOnly sessions | backend/domain permission tests |
 | PRD-DAT-001 | Synthetic markers and synthetic-only controlled imports | domain import rejection tests; UI labels |
 
-Local domain API, domain invariants, responsive domain browser checks (320, 390, 768 and 1440 pixels) and TypeScript/production build passed. Production migration, workflow and post-redeployment verification are recorded below once completed. Browser layout coverage does not independently prove every filter/mode combination.
+Local domain API, domain invariants, responsive domain browser checks (320, 390, 768 and 1440 pixels) and TypeScript/production build passed. Production migration and workflow verification passed, followed by byte-for-byte persistence checks after a second deployment without the migration flag. Browser layout coverage does not independently prove every filter/mode combination.
 
 ## SAD alignment
 
@@ -35,8 +35,32 @@ Local domain API, domain invariants, responsive domain browser checks (320, 390,
 
 ## Release gates and remaining limitations
 
-v0.1/v0.2 functionality is deployed and previously verified. v0.3/v0.4 functionality is implemented and locally verified; final release acceptance requires successful migration, production journeys and retained evidence after redeployment.
+v0.1/v0.2 functionality is deployed and previously verified. v0.3/v0.4 functional flows are deployed and verified in production, including retained evidence after redeployment. Non-functional and stakeholder acceptance limits below remain open.
 
 Pilot gates remain open: approved NetOne extracts and source ownership, financial/strategic definitions, owner-validated service/regulatory rules, intervention-outcome validation, stakeholder UAT and a documented go/no-go. Synthetic associations do not establish causal investment benefit. Monthly rule evaluation requires full-period coverage; no day-level interpolation is inferred. Incident burden is current linked estimated burden and is not added again to observed OPEX.
 
 Enterprise SAD gates remain open: SSO/identity lifecycle, approved deployment/data residency, distributed throttling, central telemetry/alerts, measured load targets, backup/restore and disaster-recovery exercises, security review and separate preview data. Public SEO is outside authenticated prototype acceptance.
+
+## Production release evidence
+
+Implementation commit: 9ad25f7. Initial deployment dpl_CF4nn8xTU8uKfQR3HU8dpMkE1L1i applied migrations 001/002 successfully. Second deployment dpl_3qfDtCNNFj6gLbuGyANsviy5FCYS omitted migration and remained healthy at https://netone-black.vercel.app.
+
+Verified production canonical seeding (100 sites), all seven incident states, draft activation rejection, reviewed activation and retirement, historical rule references, policy creation and activation permissions, five sensitivity baselines, scoring 400 immutable candidate records with projected components, accepted mapped import (numeric values unchanged), quarantine, same-key idempotency and changed-payload rejection, review transitions, candidate export hashes and before/after audit hashes. Default active policy was preserved. Verification incident is closed and verification rule retired.
+
+Production browser checks covered nine domain/core views at 390/1440 pixels with no page overflow or uncaught page errors, candidate PDF/CSV/JSON downloads and review submission. Existing scenario downloads and reload continued to work. After redeployment, canonical incident, retired rule/evaluations, inactive configuration, both import runs, score run, reviewed record and complete immutable candidate were equal to the saved verification snapshots. Verification artifacts/credentials are ignored local files, not repository content.
+
+## Non-functional acceptance
+
+| PRD NFR | Result | Evidence/remaining gate |
+| --- | --- | --- |
+| UX-01 | Stakeholder validation pending | The 60-second executive comprehension target requires observed users. |
+| PERF-01 | Not formally accepted | Filter recomputation is local; <=2-second target needs recorded representative measurements. Cold starts and full workspace writes are outside that evidence. |
+| EXP-01 | Implemented; tested | Components reconstruct scores; candidate components are projected separately and exported with immutable policy/source references. |
+| AUD-01 | Verified for implemented commands | Server-attributed audits, mutation hashes and export events; no capital-approval action is offered. |
+| SEC-01 | Prototype verified | Five roles tested locally; Finance/Admin production checks. SSO and distributed throttling remain enterprise work. |
+| DQ-01 | Verified in synthetic scope | Nulls, incomplete scoring, provenance, quality labels and synthetic-only imports. No live source quality validation. |
+| REP-01 | Verified with current engine | Deterministic scenario tests and frozen evidence surviving redeployment. Archived execution of future retired engine binaries is not implemented. |
+| ACC-01 | Partial | Labelled native controls, focusable scroll regions and responsive screens; complete keyboard/screen-reader/contrast audit remains open. |
+| RES-01 | Partial | Local screenshots and deterministic fixtures exist; a packaged narrated executive fallback and restore drill remain open. |
+
+Decision: functional synthetic milestone accepted by automated verification; full PRD release sign-off remains conditional on the open non-functional/user acceptance gates. Enterprise pilot acceptance is not claimed.
