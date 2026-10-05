@@ -4,7 +4,7 @@ import type { PortfolioFilters } from './portfolio.js';
 export const ENGINE_VERSION = 'greedy-demo-0.4';
 export const OBJECTIVES: Record<string, { label: string; weights: Weights }> = {
   balanced: { label: 'Balanced', weights: DEFAULT_WEIGHTS },
-  commercial: { label: 'Commercial return', weights: { demand: 15, growth: 10, commercial: 60, reliability: 5, service: 5, opex: 5, strategy: 0 } },
+  commercial: { label: 'Commercial priority score', weights: { demand: 15, growth: 10, commercial: 60, reliability: 5, service: 5, opex: 5, strategy: 0 } },
   growth: { label: 'Growth', weights: { demand: 40, growth: 40, commercial: 10, reliability: 0, service: 0, opex: 0, strategy: 10 } },
   reliability: { label: 'Reliability', weights: { demand: 0, growth: 0, commercial: 5, reliability: 45, service: 25, opex: 25, strategy: 0 } },
   service: { label: 'Demonstration service screening', weights: { demand: 0, growth: 0, commercial: 0, reliability: 20, service: 65, opex: 5, strategy: 10 } },
