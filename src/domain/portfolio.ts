@@ -7,7 +7,7 @@ export type DecisionState = typeof STATES[number];
 export interface Observation {
   period: Period;
   utilisation: number | null;
-  growth: number;
+  growth: number | null;
   availability: number;
   faults: number;
   capex: number;
@@ -74,11 +74,11 @@ export function reviewReason(site: Site, row: Observation): string {
   if (row.quality === 'STALE') return 'Refresh the utilisation observation before judging capacity.';
   if (row.utilisation === null || row.contribution === null) return 'Complete missing evidence before assessing investment value.';
   switch (state) {
-    case 'Capacity constrained': return `Review capacity expansion: utilisation is ${row.utilisation}% with ${row.growth}% monthly demand growth.`;
+    case 'Capacity constrained': return `Review capacity expansion: utilisation is ${row.utilisation}% with ${row.growth===null?'unavailable':row.growth.toFixed(2)}% month-on-month traffic growth.`;
     case 'Reliability burden': return `Review resilience or maintenance: ${row.faults} faults and ${row.availability}% availability this month.`;
     case 'Under-utilised': return 'Review demand and operating efficiency before committing more capital.';
     case 'Strategic inclusion': return 'Assess coverage and inclusion benefits alongside commercial contribution.';
     default: return 'Monitor demand and reliability; no intervention candidate has been scored yet.';
   }
 }
-export const usd = (value: number | null) => value === null ? 'Unavailable' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+export const usd = (value: number | null) => value === null ? 'Unavailable' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);

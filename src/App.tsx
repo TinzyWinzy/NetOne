@@ -1,3 +1,4 @@
+import AssuranceWorkbench from './features/operations/AssuranceWorkbench';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useWorkspace } from './components/WorkspaceProvider';
@@ -13,8 +14,8 @@ import { useSession } from './components/SessionGate';
 import { DEFAULT_WEIGHTS, generateCandidates, rankCandidates } from './domain/investments';
 import type { Weights } from './domain/investments';
 const InvestmentMap = lazy(() => import('./features/sites/InvestmentMap'));
-type View = 'portfolio' | 'sites' | 'map' | 'investments' | 'scenarios' | 'audit' | 'network' | 'incidents' | 'regulatory' | 'config' | 'data' | 'evidence';
-const operationalViews = ['network','incidents','regulatory','config','data','evidence'];
+type View = 'portfolio' | 'sites' | 'map' | 'investments' | 'scenarios' | 'audit' | 'network' | 'incidents' | 'regulatory' | 'config' | 'data' | 'evidence' | 'assurance';
+const operationalViews = ['network','incidents','regulatory','config','data','evidence','assurance'];
 function readLocation(): { view: View; site: string | null } {
   const query = new URLSearchParams(window.location.search);
   const view = query.get('view');
@@ -52,9 +53,9 @@ export default function App() { const { user, signOut } = useSession(); const { 
   return <ErrorBoundary>
     <a className="skip-link" href="#main-content">Skip to content</a>
     <header className="netone-header">
-      <div className="netone-shell brand-row"><div className="brand-lockup"><span className="brand-mark" aria-hidden="true">N</span><div><p className="eyebrow">NETONE · FINANCE & TECHNOLOGY</p><h1>Network Investment Intelligence</h1></div></div><div className="session-actions"><span className="demo-badge">SYNTHETIC · {user.role}</span><button onClick={() => signOut().catch(error => alert(error.message))}>Sign out</button></div></div>
+      <div className="netone-shell brand-row"><div className="brand-lockup"><span className="brand-mark" aria-hidden="true">N</span><div><p className="eyebrow">NETONE · FINANCE & TECHNOLOGY</p><h1>Network Investment and Service Assurance Intelligence</h1></div></div><div className="session-actions"><span className="demo-badge">SYNTHETIC · {user.role}</span><button onClick={() => signOut().catch(error => alert(error.message))}>Sign out</button></div></div>
       <nav className="netone-shell nav-row" aria-label="Primary">{([['portfolio', 'Executive portfolio'], ['sites', 'Site portfolio'], ['map', 'Investment map'], ['investments', 'Capital priorities'], ['scenarios', 'Capital scenarios'], ['audit', 'Evidence audit']] as const).map(([view, label]) => <button key={view} aria-current={route.view === view ? 'page' : undefined} onClick={() => navigate(view)}>{label}</button>)}</nav>
-      <details className="netone-shell domain-navigation" open={operationalViews.includes(route.view)}><summary>Network, governance and data</summary><nav className="nav-row" aria-label="Evidence domains">{([['network','Network intelligence'],['incidents','Incident evidence'],['regulatory','Service rules'],['config','Models and sensitivity'],['data','Data imports'],['evidence','Decision evidence']] as const).map(([view,label])=><button key={view} aria-current={route.view===view?'page':undefined} onClick={()=>navigate(view)}>{label}</button>)}</nav></details>
+      <details className="netone-shell domain-navigation" open={operationalViews.includes(route.view)}><summary>Network, governance and data</summary><nav className="nav-row" aria-label="Evidence domains">{([['network','Network intelligence'],['incidents','Incident evidence'],['regulatory','Service rules'],['config','Models and sensitivity'],['data','Data imports'],['evidence','Decision evidence'],['assurance','Service assurance']] as const).map(([view,label])=><button key={view} aria-current={route.view===view?'page':undefined} onClick={()=>navigate(view)}>{label}</button>)}</nav></details>
     </header>
     <main className="netone-shell main-area" id="main-content" tabIndex={-1}>
       <p className="data-notice">Demonstration data only. All assets, financial values, intervention costs and scoring policy are fictional. Recommendations are advisory. Scenario allocations are advisory and saved through the authenticated server.</p>
@@ -65,7 +66,7 @@ export default function App() { const { user, signOut } = useSession(); const { 
         <label>Reporting month<select aria-label="Reporting month" value={filters.period} onChange={event => choose('period', event.target.value as PortfolioFilters['period'])}><option value="2026-09">September 2026</option><option value="2026-08">August 2026</option></select></label>
         <button className="text-button" onClick={() => setFilters(DEFAULT_FILTERS)}>Reset filters</button>
       </section>
-      {route.site ? selected && selected.observations.some(row => row.period === filters.period) ? <SiteInvestmentCase site={selected} period={filters.period} weights={weights} onBack={() => navigate(route.view)} /> : <section className="panel"><h2>Site not found</h2><button className="primary-button" onClick={() => navigate('sites')}>Return to sites</button></section> : operationalViews.includes(route.view) ? <OperationsWorkbench view={route.view} sites={sites} filters={filters} onSite={openSite} /> : route.view === 'audit' ? <EvidenceAudit /> : route.view === 'scenarios' ? <ScenarioSimulator sites={sites} filters={filters} weights={weights} /> : route.view === 'investments' ? <InvestmentPriorities filters={filters} sites={sites} period={filters.period} weights={weights} onWeights={setWeights} onSite={openSite} /> : <>
+      {route.site ? selected && selected.observations.some(row => row.period === filters.period) ? <SiteInvestmentCase site={selected} period={filters.period} weights={weights} onBack={() => navigate(route.view)} /> : <section className="panel"><h2>Site not found</h2><button className="primary-button" onClick={() => navigate('sites')}>Return to sites</button></section> : route.view==='assurance' ? <AssuranceWorkbench/> : operationalViews.includes(route.view) ? <OperationsWorkbench view={route.view} sites={sites} filters={filters} onSite={openSite} /> : route.view === 'audit' ? <EvidenceAudit /> : route.view === 'scenarios' ? <ScenarioSimulator sites={sites} filters={filters} weights={weights} /> : route.view === 'investments' ? <InvestmentPriorities filters={filters} sites={sites} period={filters.period} weights={weights} onWeights={setWeights} onSite={openSite} /> : <>
         <div className="page-heading"><div><p className="eyebrow">CAPITAL PORTFOLIO / {filters.period}</p><h2>{route.view === 'portfolio' ? 'Where should the next dollar go?' : route.view === 'map' ? 'Investment map' : 'Site portfolio'}</h2><p>Connect capital, capacity and recurring operating burden.</p></div><span className="record-count" aria-live="polite">{sites.length} of {portfolio.length} sites</span></div>
         {route.view === 'portfolio' && <>
           <section className="metric-strip" aria-label="Portfolio summary">

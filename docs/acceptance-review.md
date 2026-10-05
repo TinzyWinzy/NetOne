@@ -64,3 +64,7 @@ Production browser checks covered nine domain/core views at 390/1440 pixels with
 | RES-01 | Partial | Local screenshots and deterministic fixtures exist; a packaged narrated executive fallback and restore drill remain open. |
 
 Decision: functional synthetic milestone accepted by automated verification; full PRD release sign-off remains conditional on the open non-functional/user acceptance gates. Enterprise pilot acceptance is not claimed.
+
+## Local controlled-pilot extension — not deployed
+
+The user-authorised 5 October pilot extension adds canonical traffic-growth consistency, sourced obligations, cell measurements/findings, cause-specific corrective cases and business assumptions, conditional sharing deadlines, evidence-gated Service Assurance, same-evidence comparisons and map failure fallback. See pilot-update.md, regulatory-feature-mapping.md and data-protection-pilot.md. Migration 003 and production deployment are expressly withheld pending separate authorisation. Earlier production acceptance applies to the baseline commits listed above, not these local changes.

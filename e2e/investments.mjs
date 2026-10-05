@@ -25,13 +25,14 @@ try {
   assert.equal(snapshot.candidates.length, 400);
   assert.ok(snapshot.candidates.some(candidate => candidate.score !== null));
   await page.getByRole('checkbox', { name: 'Show excluded candidates' }).check();
+  while(await page.getByRole('button',{name:/Show more candidates/}).isVisible())await page.getByRole('button',{name:/Show more candidates/}).click();
   assert.equal(await compare.count(), 400);
   await page.getByLabel('Inspect candidate', { exact: true }).selectOption('N001:capacity:2026-09');
-  assert.match(await page.locator('.investment-feature').innerText(), /missing utilisation or commercial evidence/);
+  assert.match(await page.locator('.investment-feature').innerText(), /missing utilisation, commercial or comparable traffic growth/);
   await page.locator('.model-config summary').click();
   await page.getByLabel('Demand pressure weight', { exact: true }).fill('100');
   assert.equal(await page.getByRole('button', { name: 'Apply demo weights' }).isDisabled(), true);
-  for (const label of ['Demand growth', 'Commercial contribution', 'Reliability burden', 'Service risk', 'Operating burden', 'Strategic inclusion']) await page.getByLabel(`${label} weight`, { exact: true }).fill('0');
+  for (const label of ['Traffic growth (month-on-month)', 'Commercial contribution', 'Reliability burden', 'Service risk', 'Operating burden', 'Strategic inclusion']) await page.getByLabel(`${label} weight`, { exact: true }).fill('0');
   await page.getByRole('button', { name: 'Apply demo weights' }).click();
   await page.getByRole('button', { name: 'Save local evidence snapshot' }).click();
   const changed = await page.evaluate(() => JSON.parse(localStorage.getItem('netone-investment-snapshot')));

@@ -19,7 +19,9 @@
     "test:backend": "node tests/backend.mjs",
     "e2e:governance": "node e2e/governance.mjs",
     "test:domains": "node tests/domains.mjs",
-    "e2e:domains": "node e2e/domains.mjs"
+    "e2e:domains": "node e2e/domains.mjs",
+    "test:pilot": "node tests/pilot.mjs",
+    "e2e:pilot": "node e2e/pilot.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

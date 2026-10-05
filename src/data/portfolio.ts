@@ -17,8 +17,8 @@ export function buildPortfolio(): Site[] {
       const utilisation = [84, 26, 62, 43, 58][pattern] + index % 6 + month * 2;
       const quality = index === 11 ? 'STALE' : index === 22 ? 'CONFLICT' : index % 19 === 0 || index % 23 === 0 ? 'PARTIAL' : 'COMPLETE';
       return {
-        period, utilisation: index % 19 === 0 ? null : utilisation,
-        growth: [12, 1, 4, 7, 3][pattern] + month,
+        period, trafficGB: Math.round(utilisation * (34 + index % 6)), sourceRef:`netone-demo/N${String(index+1).padStart(3,'0')}/${period}`, utilisation: index % 19 === 0 ? null : utilisation,
+        growth: null, // Derived from comparable traffic observations when canonical workspace is initialised.
         availability: pattern === 2 ? 95.2 + (index % 4) * 0.4 : 99.2 + (index % 4) * 0.2,
         faults: pattern === 2 ? 6 + index % 4 : index % 3,
         capex: 100000 + index * 2800,

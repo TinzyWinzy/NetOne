@@ -14,18 +14,18 @@ export default function InvestmentMap({ sites, period, onSelect }: { sites: Site
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [mode, setMode] = useState('utilisation');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(false);const [loading,setLoading]=useState(true);const [attempt,setAttempt]=useState(0);
   useEffect(() => {
     if (!container.current) return;
-    let instance: maplibregl.Map;
+    setError(false);setLoading(true);let instance: maplibregl.Map;
     try {
       instance = new maplibregl.Map({ container: container.current, style: STYLE, center: [30, -19], zoom: 5, attributionControl: { compact: true } });
     } catch { setError(true); return; }
-    instance.on('error', () => setError(true));
+    const timeout=setTimeout(()=>{setLoading(false);setError(true)},8000);instance.on('idle',()=>{clearTimeout(timeout);setLoading(false)});instance.on('error', () => {clearTimeout(timeout);setLoading(false);setError(true)});
     instance.addControl(new maplibregl.NavigationControl(), 'top-right');
     map.current = instance;
-    return () => { instance.remove(); map.current = null; };
-  }, []);
+    return () => { clearTimeout(timeout); instance.remove(); map.current = null; };
+  }, [attempt]);
   useEffect(() => {
     const instance = map.current;
     if (!instance) return;
@@ -49,6 +49,6 @@ export default function InvestmentMap({ sites, period, onSelect }: { sites: Site
     });
     if (sites.length) instance.fitBounds(bounds, { padding: 50, duration: 0, maxZoom: 11 });
     return () => markers.forEach(marker => marker.remove());
-  }, [sites, period, mode, onSelect, priorities, risks]);
-  return <section className="panel" aria-label="Investment map"><div className="section-heading"><h3>Geographic evidence</h3><label>Colour by <select value={mode} onChange={event => setMode(event.target.value)}><option value="utilisation">Utilisation</option><option value="reliability">Reliability</option><option value="quality">Evidence quality</option><option value="priority">Investment priority</option><option value="risk">Service risk</option></select></label></div><p className="subtle">Orange: capacity ≥80%, availability below 98%, priority ≥65, or an active service warning in the selected mode. Black: other observed values. Grey: unavailable utilisation, withheld priority or incomplete risk evidence. Priority uses the active persisted policy; warnings are advisory.</p><div ref={container} className="investment-map" />{error && <p role="status" className="data-notice">Map imagery is unavailable. The site table below contains the same filtered evidence.</p>}<p className="subtle">Fictional regional site locations. Click a marker to open its investment case; use the site table for keyboard access. Background tiles require internet.</p></section>;
+  }, [sites, period, mode, onSelect, priorities, risks, attempt]);
+  return <section className="panel" aria-label="Investment map"><div className="section-heading"><h3>Geographic evidence</h3><label>Colour by <select value={mode} onChange={event => setMode(event.target.value)}><option value="utilisation">Utilisation</option><option value="reliability">Reliability</option><option value="quality">Evidence quality</option><option value="priority">Investment priority</option><option value="risk">Service risk</option></select></label></div><p className="subtle">Orange: capacity ≥80%, availability below 98%, priority ≥65, or an active service warning in the selected mode. Black: other observed values. Grey: unavailable utilisation, withheld priority or incomplete risk evidence. Priority uses the active persisted policy; warnings are advisory.</p>{loading&&!error&&<p role="status">Loading map imagery…</p>}<div ref={container} className="investment-map" style={error?{display:'none'}:undefined} />{error && <p role="status" className="data-notice">Map imagery is unavailable. Use the regional summary and accessible sites below.</p>}{error&&<><button className="text-button" onClick={()=>setAttempt(attempt+1)}>Retry map imagery</button><h4>Regional evidence fallback</h4>{Array.from(new Set(sites.map(s=>s.region))).map(region=><details key={region}><summary>{region} · {sites.filter(s=>s.region===region).length} fictional sites</summary><div className="action-row">{sites.filter(s=>s.region===region).map(site=><button className="text-button" key={site.id} onClick={()=>onSelect(site)}>{site.id} · {decisionState(site,observation(site,period))}</button>)}</div></details>)}</>}<p className="subtle">Fictional regional site locations. Click a marker to open its investment case; use the site table for keyboard access. Background tiles require internet.</p></section>;
 }

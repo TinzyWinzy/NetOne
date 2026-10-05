@@ -25,3 +25,7 @@ Production: https://netone-black.vercel.app uses the dedicated Vercel Neon integ
 ## Canonical domain milestone
 
 Network history, incident lifecycle, reviewed service rules, model sensitivity, controlled imports and shared candidate evidence are available through **Network, governance and data**. See [acceptance review](docs/acceptance-review.md) and [architecture amendment](docs/adr-010-canonical-workspace.md). All records remain synthetic.
+
+## Local controlled-pilot extension
+
+The application is now titled **NetOne Network Investment and Service Assurance Intelligence**. The extension is local and synthetic only; do not deploy or run migration 003 without separate authorisation. Read [pilot update and demo sequence](docs/pilot-update.md), [regulatory source mapping](docs/regulatory-feature-mapping.md) and [data governance](docs/data-protection-pilot.md). New verification commands: `npm run test:pilot` and `npm run e2e:pilot`, using an isolated local data directory and BASE_URL. The pilot API suite expects a fresh synthetic store; browser tests use the resulting explicit synthetic cases.

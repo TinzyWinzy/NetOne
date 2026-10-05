@@ -1,18 +1,19 @@
 import { COMPONENTS, DEFAULT_WEIGHTS } from './investments.js';
 import type { Candidate, Weights } from './investments.js';
 import type { PortfolioFilters } from './portfolio.js';
-export const ENGINE_VERSION = 'greedy-demo-0.3';
+export const ENGINE_VERSION = 'greedy-demo-0.4';
 export const OBJECTIVES: Record<string, { label: string; weights: Weights }> = {
   balanced: { label: 'Balanced', weights: DEFAULT_WEIGHTS },
   commercial: { label: 'Commercial return', weights: { demand: 15, growth: 10, commercial: 60, reliability: 5, service: 5, opex: 5, strategy: 0 } },
   growth: { label: 'Growth', weights: { demand: 40, growth: 40, commercial: 10, reliability: 0, service: 0, opex: 0, strategy: 10 } },
   reliability: { label: 'Reliability', weights: { demand: 0, growth: 0, commercial: 5, reliability: 45, service: 25, opex: 25, strategy: 0 } },
-  service: { label: 'Regulatory / service assurance', weights: { demand: 0, growth: 0, commercial: 0, reliability: 20, service: 65, opex: 5, strategy: 10 } },
+  service: { label: 'Demonstration service screening', weights: { demand: 0, growth: 0, commercial: 0, reliability: 20, service: 65, opex: 5, strategy: 10 } },
+  assurance: { label: 'Service Assurance · evidence gated', weights: {demand:0,growth:0,commercial:0,reliability:20,service:65,opex:5,strategy:10}},
   inclusion: { label: 'Inclusion', weights: { demand: 5, growth: 10, commercial: 0, reliability: 5, service: 5, opex: 0, strategy: 75 } }
 };
-export interface ScenarioInput { budget: number; objective: string; minimumScore: number; mustFund: string[]; excluded: string[]; filters: PortfolioFilters }
+export interface ScenarioInput { mustFundRationale?:string; budget: number; objective: string; minimumScore: number; mustFund: string[]; excluded: string[]; filters: PortfolioFilters }
 export interface Allocation { candidateId: string; selected: boolean; cost: number; objectiveScore: number; reason: string }
-export interface ScenarioResult { engineVersion: string; input: ScenarioInput; objectiveWeights: Weights; candidates: Candidate[]; allocations: Allocation[]; spend: number; unallocated: number; objectiveValue: number }
+export interface ScenarioResult { policySnapshot?:unknown;regulatorySnapshot?:unknown;engineVersion: string; input: ScenarioInput; objectiveWeights: Weights; candidates: Candidate[]; allocations: Allocation[]; spend: number; unallocated: number; objectiveValue: number }
 export interface SavedScenario { id: string; name: string; savedAt: string; result: ScenarioResult }
 const cents = (value: number) => {
   const rounded = Math.round(value * 100);
@@ -43,7 +44,7 @@ export function allocateScenario(candidates: Candidate[], input: ScenarioInput, 
   let spent = 0;
   const choose = (candidate: Candidate, required: boolean) => {
     const allocation = allocations.find(value => value.candidateId === candidate.id)!;
-    let reason = !candidate.eligible ? candidate.reason : !scope(candidate) ? 'Outside region or technology constraints.' : excluded.has(candidate.id) ? 'Explicitly excluded.' : allocation.objectiveScore < input.minimumScore || allocation.objectiveScore <= 0 ? 'Below minimum objective value.' : usedSites.has(candidate.siteId) ? 'An alternative intervention at this site is already selected.' : spent + cents(candidate.estimatedCost) > budget ? 'Insufficient remaining budget.' : '';
+    let reason = input.objective==='assurance'&&!candidate.serviceAssuranceSupported ? 'Service Assurance withheld: reviewed obligation applicability, confirmed cell finding, cause-specific engineering evidence and regulatory review required.' : !candidate.eligible ? candidate.reason : !scope(candidate) ? 'Outside region or technology constraints.' : excluded.has(candidate.id) ? 'Explicitly excluded.' : allocation.objectiveScore < input.minimumScore || allocation.objectiveScore <= 0 ? 'Below minimum objective value.' : usedSites.has(candidate.siteId) ? 'An alternative intervention at this site is already selected.' : spent + cents(candidate.estimatedCost) > budget ? 'Insufficient remaining budget.' : '';
     if (required && reason) throw new Error(`Must-fund constraint infeasible for ${candidate.id}: ${reason}`);
     if (reason) { allocation.reason = reason; return; }
     spent += cents(candidate.estimatedCost); usedSites.add(candidate.siteId); allocation.selected = true;
@@ -55,3 +56,6 @@ export function allocateScenario(candidates: Candidate[], input: ScenarioInput, 
   return structuredClone({ engineVersion: ENGINE_VERSION, input, objectiveWeights: objective.weights, candidates, allocations, spend: spent / 100, unallocated: (budget - spent) / 100, objectiveValue: allocations.filter(value => value.selected).reduce((sum, value) => sum + value.objectiveScore, 0) });
 }
 
+
+/** Replay supported historical greedy engines using frozen evidence only. */
+export function replayScenario(snapshot:ScenarioResult):ScenarioResult {if(!['greedy-demo-0.3',ENGINE_VERSION].includes(snapshot.engineVersion))throw new Error('Saved engine is unsupported; retain original evidence without recomputing under new defaults.');const result=allocateScenario(snapshot.candidates,snapshot.input,snapshot.objectiveWeights);return {...result,engineVersion:snapshot.engineVersion,...(snapshot.policySnapshot?{policySnapshot:structuredClone(snapshot.policySnapshot)}:{}),...(snapshot.regulatorySnapshot?{regulatorySnapshot:structuredClone(snapshot.regulatorySnapshot)}:{})};}

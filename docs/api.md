@@ -22,3 +22,11 @@ All operations use /api/netone?action=NAME. Reads use GET; commands use POST JSO
 400 invalid command; 401 missing session; 403 role/origin denial; 404 missing record/action; 409 stale revision or idempotency conflict; 413 oversized request; 503 storage/configuration unavailable. Commands refresh the workspace after mutation. No silent fixture fallback is used in a failed production workspace load.
 
 Review lifecycle: SUBMITTED → IN_REVIEW → REVIEWED or CHANGES_REQUESTED → IN_REVIEW. Incident lifecycle: OPEN → ACKNOWLEDGED → INVESTIGATING → FIELD_RESPONSE → RESTORED → VERIFIED → CLOSED. Review completion does not approve capital expenditure.
+
+## Pilot command contract (local, not deployed)
+
+POST action=pilot accepts expected revision and explicit operation. Network/Admin record synthetic cell counters, diagnosis, engineering review, implementation and outcomes. Regulatory/Admin record obligation interpretation/applicability and finding confirmation; missing authoritative provisions cannot be reviewed into numerical evaluation. Finance/Admin submit investment cases. Network/Finance/Admin can draft cases/options; Network/Regulatory/Admin review submitted cases. Admin handles separate privacy/security reviews. Server identities determine actors and roles. Unsupported/insufficient evidence cannot be confirmed, submitted or verified through forged client status.
+
+POST compare-objectives is Finance/Admin only and generates Balanced/Growth/Reliability from one canonical candidate/policy snapshot. Service Assurance is a separate evidence-gated objective. Must-fund requests require rationale; no mandatory expenditure is inferred.
+
+Pilot observations retain independently entered synthetic counters and a cell/site/service/technology/window mapping. Unknown benefit inputs are null. No arbitrary uploaded evidence documents or real operator measurements are accepted. Source references/notes must remain fictional in this deployment.

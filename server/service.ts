@@ -1,3 +1,4 @@
+import { initializePilot } from './pilot.js';
 import { createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { portfolio } from '../src/data/portfolio.js';
 import { filterPortfolio, PERIODS, STATES } from '../src/domain/portfolio.js';
@@ -53,7 +54,7 @@ const evidenceHash = (data: unknown) => createHash('sha256').update(JSON.stringi
 const audit = async (actor: Identity, action: string, subject: string, data: unknown, scenario?: SavedScenario, revoked?: { hash: string; expires: string }) => commit({ id: randomUUID(), actor: actor.username, role: actor.role, action, subject, occurredAt: new Date().toISOString(), evidenceHash: evidenceHash(data) }, scenario, revoked);
 const failures = new Map<string, { count: number; until: number }>();
 async function getWorkspace(): Promise<Workspace> {
-  const existing = await loadWorkspace(); if (existing) return existing;
+  const existing = await loadWorkspace(); if (existing) { if(!existing.pilot){const before=structuredClone(existing);initializePilot(existing);const revision=existing.revision;existing.revision++;await saveWorkspace(existing,revision,{id:randomUUID(),actor:'synthetic-pilot-migration',role:'System',action:'PILOT_SCHEMA_UPGRADE',subject:'workspace',occurredAt:new Date().toISOString(),evidenceHash:digest(existing),beforeHash:digest(before),afterHash:digest(existing)},before);} return existing; }
   const workspace = seedWorkspace();
   try { await saveWorkspace(workspace, -1, { id: randomUUID(), actor: 'synthetic-seed', role: 'System', action: 'CANONICAL_SEED', subject: 'workspace', occurredAt: new Date().toISOString(), evidenceHash: digest(workspace) }); }
   catch (error) { if (!(error instanceof RevisionConflict)) throw error; }
@@ -103,7 +104,7 @@ export async function handleNetOne(request: RequestData): Promise<ResponseData> 
       const workspace=await getWorkspace();const evidence=workspace.evidence.find(record=>record.id===request.id);if(!evidence)return {status:404,body:{error:'Evidence not found.'}};
       await audit(user,'CANDIDATE_EXPORTED',evidence.id,evidence);return {status:200,body:{evidence,exportedBy:user.username,exportedAt:new Date().toISOString(),dataStatus:'SYNTHETIC'}};
     }
-    if (['incidents','rules','config','score','imports','candidate-evidence','reviews'].includes(request.action) && request.method === 'POST') {
+    if (['incidents','rules','config','score','imports','candidate-evidence','reviews','pilot'].includes(request.action) && request.method === 'POST') {
       const previousWorkspace=await getWorkspace();const workspace=structuredClone(previousWorkspace);
       if(request.action==='reviews'&&request.body?.operation==='submit'&&request.body?.subjectType==='scenario'&&!(await listScenarios()).some(record=>record.id===request.body.subjectId))return {status:404,body:{error:'Saved scenario not found.'}};
       const expected=workspace.revision;const command=executeCommand(workspace,request.action,request.body,user,new Date().toISOString());workspace.revision++;
@@ -121,14 +122,16 @@ export async function handleNetOne(request: RequestData): Promise<ResponseData> 
       return { status: 200, body: { audit: await listAudit() } };
     }
     if (request.action === 'scenarios' && request.method === 'GET') return { status: 200, body: { scenarios: await listScenarios() } };
-    if (['scenarios', 'run'].includes(request.action) && request.method === 'POST') {
+    if (['scenarios', 'run','compare-objectives'].includes(request.action) && request.method === 'POST') {
       if (!['Finance', 'Admin'].includes(user.role)) return { status: 403, body: { error: 'Finance or Admin permission required to save scenarios.' } };
       const input = request.body?.input as ScenarioInput;
       if (!input || !input.filters || !PERIODS.includes(input.filters.period) || typeof input.filters.region !== 'string' || typeof input.filters.technology !== 'string' || !(input.filters.state === 'All' || STATES.includes(input.filters.state as any)) || !Array.isArray(input.mustFund) || !Array.isArray(input.excluded) || input.mustFund.length > 400 || input.excluded.length > 400 || ![...input.mustFund, ...input.excluded].every(value => typeof value === 'string')) return { status: 400, body: { error: 'Invalid scenario input.' } };
       const workspace = await getWorkspace();
       if (!(input.filters.region === 'All' || workspace.sites.some(site => site.region === input.filters.region)) || !['All', '3G', '4G', '5G'].includes(input.filters.technology)) return { status: 400, body: { error: 'Unknown portfolio filter.' } };
+      if(input.mustFund.length && (typeof input.mustFundRationale!=='string'||!input.mustFundRationale.trim()||input.mustFundRationale.length>1000))return {status:400,body:{error:'Must-fund entries require an authorised reviewer rationale.'}};
+      if(request.action==='compare-objectives'){const scored=scoreWorkspace(workspace,input.filters);const results=['balanced','growth','reliability'].map(objective=>({...allocateScenario(scored.candidates,{...input,objective},scored.config.weights),policySnapshot:structuredClone(scored.config),regulatorySnapshot:structuredClone(workspace.pilot?.obligations||[])}));await audit(user,'SCENARIO_OBJECTIVES_COMPARED',randomUUID(),results);return {status:200,body:{results,evidenceHash:digest(scored.candidates)}};}
       let result;
-      try { const scored = scoreWorkspace(workspace,input.filters); result = allocateScenario(scored.candidates, input, scored.config.weights); } catch (error) { return { status: 400, body: { error: error instanceof Error ? error.message : 'Invalid allocation.' } }; }
+      try { const scored = scoreWorkspace(workspace,input.filters); result = {...allocateScenario(scored.candidates, input, scored.config.weights),policySnapshot:structuredClone(scored.config),regulatorySnapshot:structuredClone(workspace.pilot?.obligations||[])}; } catch (error) { return { status: 400, body: { error: error instanceof Error ? error.message : 'Invalid allocation.' } }; }
       if (request.action === 'run') { await audit(user, 'SCENARIO_RUN', randomUUID(), result); return { status: 200, body: { result, snapshotHash: digest(result) } }; }
       if (request.body?.expectedHash && request.body.expectedHash !== digest(result)) return {status:409,body:{error:'Canonical evidence or policy changed after this run. Run the scenario again before saving.'}};
       const scenario: SavedScenario = { id: randomUUID(), savedAt: new Date().toISOString(), name: typeof request.body.name === 'string' ? request.body.name.trim().slice(0, 120) || 'Capital scenario' : 'Capital scenario', result };

@@ -38,6 +38,7 @@ try {
   await page.getByText('Must-fund and exclusion constraints', { exact: true }).click();
   const candidateId = await page.getByLabel('Must fund', { exact: true }).locator('option').first().getAttribute('value');
   await page.getByLabel('Must fund', { exact: true }).selectOption(candidateId);
+  await page.getByLabel('Must-fund rationale',{exact:true}).fill('Synthetic reviewer explicitly requires this intervention; zero budget must remain infeasible.');
   await page.getByRole('button', { name: 'Run scenario', exact: true }).click();
   assert.match(await page.getByRole('alert').innerText(), /infeasible/);
   assert.equal(await page.getByRole('region', { name: 'Scenario result' }).count(), 0);

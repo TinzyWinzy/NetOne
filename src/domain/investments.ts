@@ -1,10 +1,11 @@
+import { trafficGrowth } from './growth.js';
 import { DATASET_VERSION, observation, decisionState } from './portfolio.js';
 import type { Period, Site } from './portfolio.js';
 
-export const MODEL_VERSION = 'priority-demo-0.2';
+export const MODEL_VERSION = 'priority-demo-0.3';
 export const COMPONENTS = [
   { code: 'demand', label: 'Demand pressure', unit: '%', transform: 'clamp((utilisation − 30) / 60 × 100)' },
-  { code: 'growth', label: 'Demand growth', unit: '% / month', transform: 'clamp(growth / 15 × 100)' },
+  { code: 'growth', label: 'Traffic growth (month-on-month)', unit: '% / month', transform: 'clamp(growth / 15 × 100)' },
   { code: 'commercial', label: 'Commercial contribution', unit: 'USD / month', transform: 'clamp(contribution proxy / 20000 × 100)' },
   { code: 'reliability', label: 'Reliability burden', unit: 'faults / month', transform: 'clamp(faults / 8 × 100)' },
   { code: 'service', label: 'Service risk', unit: '% availability', transform: 'clamp((98 − availability) / 4 × 100)' },
@@ -32,6 +33,12 @@ export interface ScoreComponent {
 }
 export interface Candidate {
   configId?: string;
+  growthEvidence?: ReturnType<typeof trafficGrowth>;
+  screeningEligible?: boolean;
+  evidenceSufficiency?: string;
+  engineeringStatus?: string;
+  reviewReady?: boolean;
+  serviceAssuranceSupported?: boolean;
   id: string; siteId: string; siteName: string; region: string; technology: string; decisionState: string;
   action: string; actionCode: string; estimatedCost: number; currency: 'USD'; costBasis: string; demo: true; eligible: boolean; reason: string;
   score: number | null; confidence: 'DEMO COMPLETE' | 'INCOMPLETE';
@@ -51,35 +58,37 @@ export function generateCandidates(sites: Site[], period: Period, weights: Weigh
   const weightVersion = `${MODEL_VERSION}:${COMPONENTS.map(component => weights[component.code]).join('-')}`;
   return sites.flatMap(site => {
     const row = observation(site, period);
-    const missing = row.utilisation === null || row.contribution === null || !rule;
-    const validMetrics = [row.growth, row.availability, row.faults, row.failureCost, row.opex].every(value => Number.isFinite(value) && value >= 0)
+    const growthEvidence=trafficGrowth(site,period);
+    const growth=growthEvidence.value;
+    const missing = growth===null || row.utilisation === null || row.contribution === null || !rule;
+    const validMetrics = [row.availability, row.faults, row.failureCost, row.opex].every(value => Number.isFinite(value) && value >= 0)
       && row.availability <= 100 && (row.utilisation === null || Number.isFinite(row.utilisation) && row.utilisation >= 0 && row.utilisation <= 100)
       && (row.contribution === null || Number.isFinite(row.contribution) && row.contribution >= 0);
     const dataReady = row.quality === 'COMPLETE' && !missing && validMetrics;
-    const raw: Record<ComponentCode, number | null> = { demand: row.utilisation, growth: row.growth, commercial: row.contribution, reliability: row.faults, service: row.availability, opex: row.failureCost, strategy: site.strategic ? 1 : 0 };
+    const raw: Record<ComponentCode, number | null> = { demand: row.utilisation, growth, commercial: row.contribution, reliability: row.faults, service: row.availability, opex: row.failureCost, strategy: site.strategic ? 1 : 0 };
     const normalised: Record<ComponentCode, number | null> = {
       demand: row.utilisation === null ? null : clamp((row.utilisation - 30) / 60 * 100),
-      growth: clamp(row.growth / 15 * 100), commercial: row.contribution === null ? null : clamp(row.contribution / 20000 * 100),
+      growth: growth===null ? null : clamp(growth / 15 * 100), commercial: row.contribution === null ? null : clamp(row.contribution / 20000 * 100),
       reliability: clamp(row.faults / 8 * 100), service: rule ? clamp((rule.threshold - row.availability) / 4 * 100) : null,
       opex: clamp(row.failureCost / 2500 * 100), strategy: site.strategic ? 100 : 0
     };
     const sourceRef = row.sourceRef || `${DATASET_VERSION}/${site.id}/${period}`;
     return ACTIONS.map(action => {
       const technicalEligible = action.code === 'capacity' ? row.utilisation !== null && row.utilisation >= 80
-        : action.code === 'backhaul' ? row.utilisation !== null && row.utilisation >= 65 && row.growth >= 5
+        : action.code === 'backhaul' ? row.utilisation !== null && row.utilisation >= 65 && growth !== null && growth >= 5
         : action.code === 'resilience' ? !!rule && row.availability < rule.threshold
         : row.faults >= 3;
-      const reason = !dataReady ? `Withheld: ${!validMetrics ? 'invalid metric input' : !rule ? 'no active availability rule' : missing ? 'missing utilisation or commercial evidence' : row.quality.toLowerCase() + ' evidence'}. Complete validated inputs are required.`
+      const reason = !dataReady ? `Withheld: ${!validMetrics ? 'invalid metric input' : !rule ? 'no active availability rule' : missing ? `missing utilisation, commercial or comparable traffic growth (${growthEvidence.status})` : row.quality.toLowerCase() + ' evidence'}. Complete validated inputs are required.`
         : !technicalEligible ? `Not eligible: ${action.code === 'capacity' ? 'utilisation must be at least 80%' : action.code === 'backhaul' ? 'utilisation must be at least 65% and growth at least 5%' : action.code === 'resilience' ? `availability must be below the ${rule?.threshold ?? 'unavailable'} demo threshold` : 'at least 3 faults in the reporting month are required'}.`
-        : `Eligible: ${action.code === 'capacity' ? `${row.utilisation}% utilisation` : action.code === 'backhaul' ? `${row.utilisation}% utilisation and ${row.growth}% growth` : action.code === 'resilience' ? `${row.availability}% availability below the demo threshold` : `${row.faults} faults in period`}. Engineering feasibility and benefit validation remain outstanding.`;
+        : `Screening eligible: ${action.code === 'capacity' ? `${row.utilisation}% utilisation` : action.code === 'backhaul' ? `${row.utilisation}% utilisation and ${growth?.toFixed(2)}% traffic growth` : action.code === 'resilience' ? `${row.availability}% availability below the demo threshold` : `${row.faults} faults in period`}. Engineering feasibility and benefit validation remain outstanding.`;
       const components = COMPONENTS.map(component => ({ code: component.code, raw: raw[component.code], normalised: dataReady ? normalised[component.code] : null,
         relevance: action.relevance[component.code], weight: weights[component.code],
         contribution: dataReady ? normalised[component.code]! * action.relevance[component.code] * weights[component.code] / 100 : null,
-        sourceRef, unit: component.unit, normalisation: component.code === 'service' ? (rule ? `clamp((${rule.threshold} − availability) / 4 × 100)` : 'No active availability rule; withheld') : component.transform }));
+        sourceRef: component.code==='growth' ? growthEvidence.sources.join(' → ') : sourceRef, unit: component.unit, normalisation: component.code === 'service' ? (rule ? `clamp((${rule.threshold} − availability) / 4 × 100)` : 'No active availability rule; withheld') : component.transform }));
       return { id: `${site.id}:${action.code}:${period}`, siteId: site.id, siteName: site.name, region: site.region, technology: site.technology, decisionState: decisionState(site, row),
         action: action.label, actionCode: action.code, estimatedCost: action.cost + (Number(site.id.replace(/\D/g, '').slice(-3)) || 0) % 5 * 1000,
         currency: 'USD', costBasis: 'Fictional nominal intervention CAPEX estimate', demo: true,
-        eligible: dataReady && technicalEligible, reason, score: dataReady && technicalEligible ? components.reduce((sum, component) => sum + component.contribution!, 0) : null,
+        growthEvidence, screeningEligible:dataReady && technicalEligible, evidenceSufficiency:'Diagnosis required: screening metrics do not establish the cause.', engineeringStatus:'NOT_REVIEWED', reviewReady:false, serviceAssuranceSupported:false, eligible: dataReady && technicalEligible, reason, score: dataReady && technicalEligible ? components.reduce((sum, component) => sum + component.contribution!, 0) : null,
         confidence: dataReady ? 'DEMO COMPLETE' : 'INCOMPLETE', components, period, datasetVersion: DATASET_VERSION, modelVersion: MODEL_VERSION,
         weightVersion, weights: { ...weights }, sourceRef,
         serviceEvidence: { rule, observed: row.availability, triggered: !!rule && row.availability < rule.threshold }

@@ -1,3 +1,4 @@
+import { initializePilot } from './pilot.js';
 import { portfolio } from '../src/data/portfolio.js';
 import { DEFAULT_WEIGHTS, MODEL_VERSION } from '../src/domain/investments.js';
 import { evaluateRules, INCIDENT_STATES } from '../src/domain/operations.js';
@@ -16,5 +17,6 @@ export function seedWorkspace(): Workspace {
     rules: [{ id: 'RULE-AVAILABILITY-1', code: 'DEMO-AVAILABILITY', version: '1', metric: 'availability', comparator: '<', threshold: 98, effectiveFrom: '2026-08-01', effectiveTo: '2026-10-01', source: 'Synthetic availability demonstration; not a legal threshold', status: 'active', createdBy: 'synthetic-seed', reviewedBy: 'synthetic-seed', reviewedAt: '2026-08-01T00:00:00.000Z', activatedBy: 'synthetic-seed', activatedAt: '2026-08-01T00:00:00.000Z' }, { id: 'RULE-DOWNTIME-1', code: 'DEMO-DOWNTIME', version: '1', metric: 'downtimeHours', comparator: '>', threshold: 5, effectiveFrom: '2026-08-01', effectiveTo: '2026-10-01', source: 'Synthetic monthly downtime review prompt; not a regulatory obligation', status: 'active', createdBy: 'synthetic-seed', reviewedBy: 'synthetic-seed', reviewedAt: '2026-08-01T00:00:00.000Z', activatedBy: 'synthetic-seed', activatedAt: '2026-08-01T00:00:00.000Z' }],
     evaluations: [], configs: [config], activeConfigId: config.id, mappings: sites.map(site => ({ id: `netone-demo:${site.id}`, source: 'netone-demo', externalRef: site.id, siteId: site.id })), imports: [], evidence: [], reviews: [], scoreRuns: [] };
   workspace.evaluations = evaluateRules(sites, workspace.rules, '2026-08', '2026-08-31T23:59:59.000Z').concat(evaluateRules(sites, workspace.rules, '2026-09', '2026-09-30T23:59:59.000Z'));
+  initializePilot(workspace);
   return workspace;
 }

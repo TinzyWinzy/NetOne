@@ -1,3 +1,5 @@
+import { supportCandidate } from './assurance.js';
+import type { PilotState } from './assurance.js';
 import type { Site, Period, PortfolioFilters } from './portfolio.js';
 import { observation, filterPortfolio } from './portfolio.js';
 import { DEFAULT_WEIGHTS, generateCandidates, rankCandidates } from './investments.js';
@@ -7,7 +9,7 @@ export const INCIDENT_STATES = ['OPEN', 'ACKNOWLEDGED', 'INVESTIGATING', 'FIELD_
 export type IncidentState = typeof INCIDENT_STATES[number];
 export interface IncidentEvent { id: string; state: IncidentState; at: string; actor: string; note: string }
 export interface Incident { id: string; siteId: string; type: string; severity: 'LOW' | 'MEDIUM' | 'HIGH'; impact: string; estimatedBurden: number; demo: true; events: IncidentEvent[] }
-export interface RuleVersion extends ServiceRule { code: string; metric: 'availability' | 'downtimeHours' | 'faults' | 'utilisation'; comparator: '<' | '<=' | '>' | '>='; status: 'draft' | 'reviewed' | 'active' | 'retired'; createdBy: string; reviewedBy?: string; reviewedAt?: string; reviewNote?: string; activatedBy?: string; activatedAt?: string; retiredBy?: string; retiredAt?: string }
+export interface RuleVersion extends ServiceRule { category?:'DEMONSTRATION'|'INTERNAL'; code: string; metric: 'availability' | 'downtimeHours' | 'faults' | 'utilisation'; comparator: '<' | '<=' | '>' | '>='; status: 'draft' | 'reviewed' | 'active' | 'retired'; createdBy: string; reviewedBy?: string; reviewedAt?: string; reviewNote?: string; activatedBy?: string; activatedAt?: string; retiredBy?: string; retiredAt?: string }
 export interface RuleEvaluation { id: string; siteId: string; period: Period; ruleId: string; ruleVersion: string; rule: RuleVersion; observed: number | null; state: 'NORMAL' | 'WARNING' | 'INCOMPLETE'; evaluatedAt: string; sourceRef: string; demo: true }
 export interface ModelConfig { id: string; version: number; name: string; weights: Weights; minimumScore: number; createdAt: string; createdBy: string; modelVersion: string }
 export interface SourceMapping { id: string; source: string; externalRef: string; siteId: string }
@@ -15,7 +17,7 @@ export interface ImportRun { id: string; key: string; source: string; hash: stri
 export interface CandidateRecord { id: string; at: string; actor: string; candidate: Candidate; config: ModelConfig; source: { site: Site; mappings: SourceMapping[]; incidents: Incident[]; evaluations: RuleEvaluation[] }; hash: string }
 export interface Review { id: string; subjectType: 'candidate' | 'scenario'; subjectId: string; events: { status: 'SUBMITTED' | 'IN_REVIEW' | 'REVIEWED' | 'CHANGES_REQUESTED'; actor: string; role: string; at: string; note: string }[] }
 export interface ScoreRun { id: string; at: string; actor: string; configId: string; filters: PortfolioFilters; candidateCount: number; recordIds: string[] }
-export interface Workspace { revision: number; schemaVersion: '2'; sites: Site[]; incidents: Incident[]; rules: RuleVersion[]; evaluations: RuleEvaluation[]; configs: ModelConfig[]; activeConfigId: string; mappings: SourceMapping[]; imports: ImportRun[]; evidence: CandidateRecord[]; reviews: Review[]; scoreRuns: ScoreRun[] }
+export interface Workspace { pilot?:PilotState; revision: number; schemaVersion: '2'; sites: Site[]; incidents: Incident[]; rules: RuleVersion[]; evaluations: RuleEvaluation[]; configs: ModelConfig[]; activeConfigId: string; mappings: SourceMapping[]; imports: ImportRun[]; evidence: CandidateRecord[]; reviews: Review[]; scoreRuns: ScoreRun[] }
 export type WorkspaceView = Omit<Workspace, 'evidence'> & { evidence: (Omit<CandidateRecord, 'source' | 'candidate'> & { candidateId: string; siteId: string; action: string; score: number | null; period: Period })[] };
 
 export function incidentState(incident: Incident): IncidentState { return incident.events[incident.events.length - 1].state; }
@@ -36,13 +38,13 @@ export function enrichSites(workspace: Pick<Workspace, 'sites' | 'incidents' | '
   const warnings = evaluateRules(workspace.sites, workspace.rules, period, 'current');
   return workspace.sites.map(site => ({ ...site, serviceRisk: warnings.some(event => event.siteId === site.id && event.state === 'WARNING'), incidentBurden: workspace.incidents.filter(incident => incident.siteId === site.id && incidentState(incident) !== 'CLOSED').reduce((sum, incident) => sum + incident.estimatedBurden, 0), linkedIncidentCount: workspace.incidents.filter(incident => incident.siteId === site.id).length }));
 }
-export function scoreWorkspace(workspace: Pick<Workspace, 'sites' | 'incidents' | 'rules' | 'configs' | 'activeConfigId'>, filters: PortfolioFilters, configId = workspace.activeConfigId) {
+export function scoreWorkspace(workspace: Pick<Workspace, 'sites' | 'incidents' | 'rules' | 'configs' | 'activeConfigId' | 'pilot'>, filters: PortfolioFilters, configId = workspace.activeConfigId) {
   const config = workspace.configs.find(value => value.id === configId);
   if (!config) throw new Error('Model configuration not found.');
   const rules = activeRules(workspace.rules, filters.period);
   const rule = rules.find(value => value.metric === 'availability' && value.comparator === '<') || null;
   const candidates = rankCandidates(generateCandidates(filterPortfolio(enrichSites(workspace, filters.period), filters), filters.period, config.weights, rule));
-  return { config, candidates: candidates.map(candidate=>({...candidate,configId:config.id,weightVersion:`${candidate.weightVersion};config:${config.id}:v${config.version}`})) };
+  return { config, candidates: candidates.map(candidate=>({...supportCandidate(candidate,workspace.pilot?.cases||[],workspace.pilot?.obligations),assuranceEvidence:workspace.pilot?.cases.filter(c=>c.siteId===candidate.siteId&&c.period===filters.period)||[],configId:config.id,weightVersion:`${candidate.weightVersion};config:${config.id}:v${config.version}`})) };
 }
 export function sensitivity(workspace: Pick<Workspace, 'sites' | 'incidents' | 'rules' | 'configs' | 'activeConfigId'>, filters: PortfolioFilters, configId?: string) {
   const { config, candidates } = scoreWorkspace(workspace, filters, configId);

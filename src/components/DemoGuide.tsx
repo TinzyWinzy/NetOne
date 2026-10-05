@@ -15,7 +15,7 @@ const STEPS: GuideStep[] = [
     id: 'overview',
     num: 1,
     title: 'QoS Command Centre',
-    body: 'The live SI 154 shield: watch cell availability, DSASR and DSDR across 100 Harare sites. Flip to "Grid event replay" to see ZESA load-shedding push towers toward a US$110,000 outage — then assign a crew to stop the clock.',
+    body: 'Legacy guide retired. Service-assurance review requires sourced obligations, cell evidence and technical diagnosis. No outage fine is calculated.',
     cta: 'Open the command centre',
     action: { tab: 'overview' }
   },

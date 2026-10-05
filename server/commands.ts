@@ -1,3 +1,5 @@
+import { pilotCommand } from './pilot.js';
+import { trafficGrowth } from '../src/domain/growth.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { PERIODS, STATES } from '../src/domain/portfolio.js';
 import type { Observation, Site, PortfolioFilters } from '../src/domain/portfolio.js';
@@ -48,7 +50,8 @@ export function executeCommand(workspace: Workspace, action: string, body: any, 
       if (!['availability','utilisation','downtimeHours','faults'].includes(body.metric) || !['<','<=','>','>='].includes(body.comparator)) fail('Invalid metric/comparator.');
       const from = text(body.effectiveFrom,'effective date',10), to = typeof body.effectiveTo === 'string' ? body.effectiveTo : '';
       if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !Number.isFinite(Date.parse(from)) || new Date(from).toISOString().slice(0,10) !== from || (to && (!/^\d{4}-\d{2}-\d{2}$/.test(to) || !Number.isFinite(Date.parse(to)) || new Date(to).toISOString().slice(0,10) !== to || to <= from))) fail('Invalid effective date interval.');
-      const rule: RuleVersion = { id: randomUUID(), code, version: String(Math.max(0,...workspace.rules.filter(value => value.code === code).map(value => Number(value.version))) + 1), metric: body.metric, comparator: body.comparator, threshold: number(body.threshold,'threshold',0,body.metric === 'availability' || body.metric === 'utilisation' ? 100 : body.metric === 'faults' ? 10000 : 744), effectiveFrom: from, effectiveTo: to, source: text(body.source,'demonstration rule source'), status: 'draft', createdBy: actor };
+      if(body.category&&!['DEMONSTRATION','INTERNAL'].includes(body.category))fail('Legal obligations use the separate sourced register; demo rules cannot be relabelled statutory.');
+      const rule: RuleVersion = { category:body.category||'DEMONSTRATION', id: randomUUID(), code, version: String(Math.max(0,...workspace.rules.filter(value => value.code === code).map(value => Number(value.version))) + 1), metric: body.metric, comparator: body.comparator, threshold: number(body.threshold,'threshold',0,body.metric === 'availability' || body.metric === 'utilisation' ? 100 : body.metric === 'faults' ? 10000 : 744), effectiveFrom: from, effectiveTo: to, source: text(body.source,'demonstration rule source'), status: 'draft', createdBy: actor };
       workspace.rules.push(rule); subject = rule.id; output = { rule };
     } else if (body.operation === 'evaluate') {
       if (!PERIODS.includes(body.period)) fail('Invalid reporting period.');
@@ -81,6 +84,7 @@ export function executeCommand(workspace: Workspace, action: string, body: any, 
   } else if (action === 'reviews') {
     if (body.operation === 'submit') { requireRole(user.role,['Finance','Admin']); if (!['candidate','scenario'].includes(body.subjectType)) fail('Invalid review subject.'); if (body.subjectType==='candidate'&&!workspace.evidence.some(value=>value.id===body.subjectId)) fail('Saved candidate evidence required.'); const review={id:randomUUID(),subjectType:body.subjectType as 'candidate'|'scenario',subjectId:text(body.subjectId,'subject ID',200),events:[{status:'SUBMITTED' as const,actor,role:user.role,at,note:text(body.note,'submission note')}]};workspace.reviews.push(review);subject=review.id;output={review}; }
     else { requireRole(user.role,['Network','Regulatory','Admin']); const review=workspace.reviews.find(value=>value.id===body.id);if(!review)fail('Review not found.',404);const prior=review.events.at(-1)!.status;const allowed=prior==='SUBMITTED'||prior==='CHANGES_REQUESTED'?['IN_REVIEW']:prior==='IN_REVIEW'?['REVIEWED','CHANGES_REQUESTED']:[];if(!allowed.includes(body.status))fail('Invalid review transition.');review.events.push({status:body.status,actor,role:user.role,at,note:text(body.note,'review evidence')});subject=review.id;output={review}; }
+  } else if (action === 'pilot') { output=pilotCommand(workspace,body,user,at,fail);subject=String((output as any).case?.id||(output as any).finding?.id||body.id||body.operation);
   } else if (action === 'imports') { requireRole(user.role,['Admin']); const run=importRows(workspace,body,actor,at);subject=run.id;output={run}; }
   else fail('Unknown command.',404);
   return { subject,output,auditAction:`${action.toUpperCase().replaceAll('-','_')}_${String(body.operation || 'SAVED').toUpperCase()}` };
@@ -108,7 +112,7 @@ function importRows(workspace:Workspace,body:any,actor:string,at:string) {
     const latitude=number(raw.latitude,'latitude',-90,90),longitude=number(raw.longitude,'longitude',-180,180);
     const metric=(key:string,min=0,max=1e9)=>number(raw[key],key,min,max);const nullable=(key:string,max=1e9)=>raw[key]===null?null:metric(key,0,max);
     const utilisation=nullable('utilisation',100),contribution=nullable('contribution');
-    const observation:Observation={period:raw.period,utilisation,contribution,growth:metric('growth',0,100),availability:metric('availability',0,100),faults:metric('faults',0,10000),trafficGB:metric('trafficGB'),downtimeHours:metric('downtimeHours',0,744),capex:metric('capex'),opex:metric('opex'),failureCost:metric('failureCost'),quality:utilisation===null||contribution===null?'PARTIAL':'COMPLETE',sourceRef:`${source}/${externalRef}/${raw.period}/import:${run.id}`};
+    const observation:Observation={period:raw.period,utilisation,contribution,growth:null,availability:metric('availability',0,100),faults:metric('faults',0,10000),trafficGB:metric('trafficGB'),downtimeHours:metric('downtimeHours',0,744),capex:metric('capex'),opex:metric('opex'),failureCost:metric('failureCost'),quality:utilisation===null||contribution===null?'PARTIAL':'COMPLETE',sourceRef:`${source}/${externalRef}/${raw.period}/import:${run.id}`};
     if([observation.capex,observation.opex,observation.contribution,observation.failureCost].some(value=>value!==null&&Math.abs(value*100-Math.round(value*100))>0.000001))fail('Financial values require at most two decimal places.');
     if(!Number.isInteger(observation.faults)||observation.failureCost>observation.opex)fail('Faults must be integral and included failure cost must not exceed OPEX.');
     const mapping=workspace.mappings.find(value=>value.source===source&&value.externalRef===externalRef);let site=mapping?workspace.sites.find(value=>value.id===mapping.siteId):raw.canonical_ref?workspace.sites.find(value=>value.id===raw.canonical_ref):undefined;
@@ -121,5 +125,5 @@ function importRows(workspace:Workspace,body:any,actor:string,at:string) {
     site.networkHistory=(site.networkHistory||[]).filter(row=>row.period!==raw.period).concat({period:raw.period,trafficGB:observation.trafficGB!,utilisation,downtimeHours:observation.downtimeHours!,faults:observation.faults,sourceRef:observation.sourceRef!,quality:observation.quality}).sort((a,b)=>a.period.localeCompare(b.period));
     run.accepted++;run.acceptedRecords.push(structuredClone(raw));
   }catch(error){run.rejected++;run.quarantine.push({row:index+1,reason:error instanceof Error?error.message:'Invalid row'});}});
-  workspace.imports.push(run); const periods = [...new Set(run.acceptedRecords.map((record:any)=>record.period))]; workspace.evaluations.push(...periods.flatMap(period=>evaluateRules(workspace.sites,workspace.rules,period as any,at)).map(record=>({...record,id:randomUUID()}))); return run;
+  for(const site of workspace.sites)for(const row of site.observations)row.growth=trafficGrowth(site,row.period).value; workspace.imports.push(run); const periods = [...new Set(run.acceptedRecords.map((record:any)=>record.period))]; workspace.evaluations.push(...periods.flatMap(period=>evaluateRules(workspace.sites,workspace.rules,period as any,at)).map(record=>({...record,id:randomUUID()}))); return run;
 }

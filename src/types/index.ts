@@ -82,10 +82,10 @@ export const SI_LIMITS = {
   dsasr: 95,
   dsdr: 2,
   outageFreeMinutes: 180,
-  baseFineUsd: 5000,
-  hourlyFineUsd: 5000,
-  towerFineUsd: 200,
-  dayCapUsd: 110000
+  baseFineUsd: 0,
+  hourlyFineUsd: 0,
+  towerFineUsd: 0,
+  dayCapUsd: 0
 } as const;
 
 export interface CrewAssignment {
