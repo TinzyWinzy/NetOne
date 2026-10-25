@@ -27,3 +27,5 @@ function readLocation(): { view: View; site: string | null } {
   return { view: view === 'cost-optimization' || view === 'sites' || view === 'map' || view === 'investments' || view === 'scenarios' || view === 'audit' || view === 'interventions' || operationalViews.includes(view || '') ? view as View : 'portfolio', site: query.get('site') };
 }
 
+
+export default function App() { return null; }
