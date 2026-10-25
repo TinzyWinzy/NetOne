@@ -1,11 +1,14 @@
-import { pilotCommand } from './pilot.js';
+﻿import { pilotCommand } from './pilot.js';
 import { trafficGrowth } from '../src/domain/growth.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { PERIODS, STATES } from '../src/domain/portfolio.js';
 import type { Observation, Site, PortfolioFilters } from '../src/domain/portfolio.js';
 import { validateWeights, MODEL_VERSION } from '../src/domain/investments.js';
 import { INCIDENT_STATES, incidentState, nextIncidentState, evaluateRules, scoreWorkspace } from '../src/domain/operations.js';
-import type { Workspace, CandidateRecord, RuleVersion } from '../src/domain/operations.js';
+import type { Workspace, CandidateRecord, RuleVersion, ApprovedProject, PreventiveActionRecord } from '../src/domain/operations.js';
+import { summarizePortfolioCostOptimization, calculateSiteCostBreakdown, generateSiteCostRecommendation } from '../src/domain/costOptimization.js';
+import { summarizePortfolioPredictiveAssurance, evaluateSitePredictiveAssurance } from '../src/domain/predictiveAssurance.js';
+import { compareModernizationOptions } from '../src/domain/financialModels.js';
 export class CommandError extends Error { constructor(public status: number, message: string) { super(message); } }
 function fail(message: string, status = 400): never { throw new CommandError(status, message); }
 export function digest(value: unknown): string {
@@ -80,10 +83,127 @@ export function executeCommand(workspace: Workspace, action: string, body: any, 
   } else if (action === 'candidate-evidence' || action === 'score') {
     requireRole(user.role,['Finance','Admin']); const filters=validateFilters(body.filters,workspace);
     if (action === 'candidate-evidence') { const record=recordCandidate(workspace,text(body.candidateId,'candidate',200),filters,actor,at,body.configId); subject=record.id; output={ evidence:record }; }
-    else { const { config,candidates }=scoreWorkspace(workspace,filters,body.configId); const records=candidates.map(candidate=>recordCandidate(workspace,candidate.id,filters,actor,at,config.id,{config,candidates})); const run={id:randomUUID(),at,actor,configId:config.id,filters,candidateCount:records.length,recordIds:records.map(record=>record.id)};workspace.scoreRuns.push(run);subject=run.id;output={run}; }
+    else { const { config,candidates }=scoreWorkspace(workspace,filters,body.configId); const records=candidates.map(candidate=>recordCandidate(workspace,candidate.id,filters,actor,at,config.id,{config,candidates})); const run={id:randomUUID(),at,actor,configId:config.id,filters,candidateCount:records.length,recordIds:records.map(record=>record.id)};(workspace.scoreRuns ??= []).push(run);subject=run.id;output={run}; }
   } else if (action === 'reviews') {
     if (body.operation === 'submit') { requireRole(user.role,['Finance','Admin']); if (!['candidate','scenario'].includes(body.subjectType)) fail('Invalid review subject.'); if (body.subjectType==='candidate'&&!workspace.evidence.some(value=>value.id===body.subjectId)) fail('Saved candidate evidence required.'); const review={id:randomUUID(),subjectType:body.subjectType as 'candidate'|'scenario',subjectId:text(body.subjectId,'subject ID',200),events:[{status:'SUBMITTED' as const,actor,role:user.role,at,note:text(body.note,'submission note')}]};workspace.reviews.push(review);subject=review.id;output={review}; }
     else { requireRole(user.role,['Network','Regulatory','Admin']); const review=workspace.reviews.find(value=>value.id===body.id);if(!review)fail('Review not found.',404);const prior=review.events.at(-1)!.status;const allowed=prior==='SUBMITTED'||prior==='CHANGES_REQUESTED'?['IN_REVIEW']:prior==='IN_REVIEW'?['REVIEWED','CHANGES_REQUESTED']:[];if(!allowed.includes(body.status))fail('Invalid review transition.');review.events.push({status:body.status,actor,role:user.role,at,note:text(body.note,'review evidence')});subject=review.id;output={review}; }
+  } else if (action === 'cost-optimization') {
+    requireRole(user.role, ['Executive', 'Finance', 'Network', 'Admin']);
+    const period = body.period && PERIODS.includes(body.period) ? body.period : '2026-09';
+    if (body.siteId) {
+      const site = workspace.sites.find(s => s.id === body.siteId);
+      if (!site) fail('Site not found.', 404);
+      const breakdown = calculateSiteCostBreakdown(site, period);
+      const recommendation = generateSiteCostRecommendation(breakdown);
+      subject = site.id;
+      output = { breakdown, recommendation };
+    } else {
+      const summary = summarizePortfolioCostOptimization(workspace.sites, period);
+      subject = period;
+      output = { summary };
+    }
+  } else if (action === 'predictive-assurance') {
+    requireRole(user.role, ['Executive', 'Finance', 'Network', 'Admin']);
+    const period = body.period && PERIODS.includes(body.period) ? body.period : '2026-09';
+    if (body.siteId) {
+      const site = workspace.sites.find(s => s.id === body.siteId);
+      if (!site) fail('Site not found.', 404);
+      const report = evaluateSitePredictiveAssurance(site, period);
+      subject = site.id;
+      output = { report };
+    } else {
+      const summary = summarizePortfolioPredictiveAssurance(workspace.sites, period);
+      subject = period;
+      output = { summary };
+    }
+  } else if (action === 'modernization') {
+    requireRole(user.role, ['Executive', 'Finance', 'Network', 'Admin']);
+    const period = body.period && PERIODS.includes(body.period) ? body.period : '2026-09';
+    const site = workspace.sites.find(s => s.id === body.siteId);
+    if (!site) fail('Site not found.', 404);
+    const options = compareModernizationOptions(site, period);
+    subject = site.id;
+    output = { options };
+  } else if (action === 'preventive-actions') {
+    requireRole(user.role, ['Network', 'Admin']);
+    if (!workspace.preventiveSchedule) workspace.preventiveSchedule = [];
+    if (body.operation === 'schedule') {
+      const site = workspace.sites.find(s => s.id === body.siteId);
+      if (!site) fail('Site not found.', 404);
+      const record: PreventiveActionRecord = {
+        id: randomUUID(),
+        siteId: site.id,
+        title: text(body.title, 'intervention title', 120),
+        actionCode: text(body.actionCode || body.actionType || '', 'action code', 60),
+        actionType: text(body.actionType || body.actionCode || '', 'action type', 60),
+        urgency: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(body.urgency) ? body.urgency : 'MEDIUM',
+        estimatedCost: number(body.estimatedCost, 'estimated cost', 0, 1e7),
+        estimatedAvoidedFailureCost: number(body.estimatedAvoidedFailureCost, 'avoided failure cost', 0, 1e7),
+        estimatedImpactHours: number(body.estimatedImpactHours ?? body.estimatedAvoidedOutageHours ?? 0, 'estimated impact hours', 0, 8760),
+        scheduledDate: text(body.scheduledDate, 'scheduled date', 10),
+        status: 'SCHEDULED',
+        assignedTeam: text(body.assignedTeam, 'assigned team', 100),
+        createdAt: at,
+        createdBy: actor,
+        notes: text(body.notes, 'notes', 500)
+      };
+      workspace.preventiveSchedule.push(record);
+      subject = record.id;
+      output = { record };
+    } else if (body.operation === 'update-status') {
+      const record = workspace.preventiveSchedule.find(r => r.id === body.id);
+      if (!record) fail('Preventive action not found.', 404);
+      if (!['SCHEDULED', 'DISPATCHED', 'COMPLETED', 'VERIFIED'].includes(body.status)) fail('Invalid status.');
+      record.status = body.status;
+      subject = record.id;
+      output = { record };
+    } else fail('Unknown preventive action operation.');
+  } else if (action === 'approved-projects') {
+    if (!workspace.approvedProjects) workspace.approvedProjects = [];
+    if (body.operation === 'approve') {
+      requireRole(user.role, ['Executive', 'Finance', 'Admin']);
+      const site = workspace.sites.find(s => s.id === body.siteId);
+      if (!site) fail('Site not found.', 404);
+      const project: ApprovedProject = {
+        id: randomUUID(),
+        scenarioId: body.scenarioId ? text(body.scenarioId, 'scenario ID', 100) : undefined,
+        candidateId: text(body.candidateId, 'candidate ID', 200),
+        siteId: site.id,
+        actionCode: text(body.actionCode, 'action code', 50),
+        actionLabel: text(body.actionLabel, 'action label', 100),
+        approvedCost: number(body.approvedCost, 'approved cost', 0, 1e8),
+        expectedAnnualSavings: number(body.expectedAnnualSavings, 'expected annual savings', 0, 1e8),
+        expectedNpv: number(body.expectedNpv, 'expected NPV', -1e8, 1e8),
+        approvedBy: actor,
+        approvedRole: user.role,
+        approvedAt: at,
+        approvalRationale: text(body.approvalRationale, 'approval rationale', 1000),
+        status: 'APPROVED'
+      };
+      workspace.approvedProjects.push(project);
+      subject = project.id;
+      output = { project };
+    } else if (body.operation === 'verify-outcome') {
+      requireRole(user.role, ['Finance', 'Admin']);
+      const project = workspace.approvedProjects.find(p => p.id === body.id);
+      if (!project) fail('Approved project not found.', 404);
+      const realizedAnnual = number(body.realizedAnnualSavings, 'realized annual savings', 0, 1e8);
+      const realizedUptime = number(body.realizedUptimePct, 'realized uptime %', 0, 100);
+      const realizedNpv = number(body.realizedNpv, 'realized NPV', -1e8, 1e8);
+      const ratio = project.expectedAnnualSavings > 0 ? Number((realizedAnnual / project.expectedAnnualSavings).toFixed(2)) : 1.0;
+      project.status = 'VERIFIED';
+      project.outcomeVerification = {
+        verifiedAt: at,
+        verifiedBy: actor,
+        realizedAnnualSavings: realizedAnnual,
+        realizedUptimePct: realizedUptime,
+        realizedNpv,
+        actualVsExpectedRatio: ratio,
+        verificationNotes: text(body.verificationNotes, 'verification notes', 1000)
+      };
+      subject = project.id;
+      output = { project };
+    } else fail('Unknown approved project operation.');
   } else if (action === 'pilot') { output=pilotCommand(workspace,body,user,at,fail);subject=String((output as any).case?.id||(output as any).finding?.id||body.id||body.operation);
   } else if (action === 'imports') { requireRole(user.role,['Admin']); const run=importRows(workspace,body,actor,at);subject=run.id;output={run}; }
   else fail('Unknown command.',404);

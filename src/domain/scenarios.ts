@@ -11,9 +11,50 @@ export const OBJECTIVES: Record<string, { label: string; weights: Weights }> = {
   assurance: { label: 'Service Assurance · evidence gated', weights: {demand:0,growth:0,commercial:0,reliability:20,service:65,opex:5,strategy:10}},
   inclusion: { label: 'Inclusion', weights: { demand: 5, growth: 10, commercial: 0, reliability: 5, service: 5, opex: 0, strategy: 75 } }
 };
-export interface ScenarioInput { mustFundRationale?:string; budget: number; objective: string; minimumScore: number; mustFund: string[]; excluded: string[]; filters: PortfolioFilters }
+export interface ScenarioInput {
+  mustFundRationale?: string;
+  budget: number;
+  objective: string;
+  minimumScore: number;
+  mustFund: string[];
+  excluded: string[];
+  filters: PortfolioFilters;
+  horizonMonths?: number;
+  discountRateAnnual?: number;
+  selectedSiteIds?: string[];
+}
 export interface Allocation { candidateId: string; selected: boolean; cost: number; objectiveScore: number; reason: string }
-export interface ScenarioResult { policySnapshot?:unknown;regulatorySnapshot?:unknown;engineVersion: string; input: ScenarioInput; objectiveWeights: Weights; candidates: Candidate[]; allocations: Allocation[]; spend: number; unallocated: number; objectiveValue: number }
+export interface ScenarioFinancialSummary {
+  totalInitialCapex: number;
+  portfolioNpv: number;
+  simpleRoi: number | null;
+  portfolioPaybackMonths: number | null;
+  annualGrossRevenue: number;
+  annualContributionMargin: number;
+  annualOpexSavings: number;
+  netAnnualImpact: number;
+  uncertaintySpread: {
+    downsideNpv: number;
+    baseNpv: number;
+    upsideNpv: number;
+  };
+  geographicDistribution: Record<string, { sites: number; spend: number; npv: number }>;
+  technologyDistribution: Record<string, { sites: number; spend: number; npv: number }>;
+  dataSufficiency: 'VALIDATED' | 'ILLUSTRATIVE';
+}
+export interface ScenarioResult {
+  policySnapshot?: unknown;
+  regulatorySnapshot?: unknown;
+  engineVersion: string;
+  input: ScenarioInput;
+  objectiveWeights: Weights;
+  candidates: Candidate[];
+  allocations: Allocation[];
+  spend: number;
+  unallocated: number;
+  objectiveValue: number;
+  financialSummary?: ScenarioFinancialSummary;
+}
 export interface SavedScenario { id: string; name: string; savedAt: string; result: ScenarioResult }
 const cents = (value: number) => {
   const rounded = Math.round(value * 100);
@@ -35,7 +76,10 @@ export function allocateScenario(candidates: Candidate[], input: ScenarioInput, 
     if (!evidence || evidence.normalised === null || !Number.isFinite(evidence.normalised) || evidence.normalised < 0 || evidence.normalised > 100 || !Number.isFinite(evidence.relevance) || evidence.relevance < 0 || evidence.relevance > 1) throw new Error('Eligible candidate has invalid score evidence.');
     return sum + evidence.normalised * evidence.relevance * objective.weights[component.code] / 100;
   }, 0) : 0;
-  const scope = (candidate: Candidate) => (input.filters.region === 'All' || candidate.region === input.filters.region) && (input.filters.technology === 'All' || candidate.technology === input.filters.technology) && (input.filters.state === 'All' || candidate.decisionState === input.filters.state);
+  const scope = (candidate: Candidate) => (input.filters.region === 'All' || candidate.region === input.filters.region)
+    && (input.filters.technology === 'All' || candidate.technology === input.filters.technology)
+    && (input.filters.state === 'All' || candidate.decisionState === input.filters.state)
+    && (!input.selectedSiteIds || input.selectedSiteIds.length === 0 || input.selectedSiteIds.includes(candidate.siteId));
   const must = new Set(input.mustFund);
   const excluded = new Set(input.excluded);
   for (const id of [...must, ...excluded]) if (!candidates.some(candidate => candidate.id === id)) throw new Error('A constrained candidate is unavailable in this portfolio.');
@@ -53,9 +97,82 @@ export function allocateScenario(candidates: Candidate[], input: ScenarioInput, 
   candidates.filter(candidate => must.has(candidate.id)).sort((a, b) => a.id.localeCompare(b.id, 'en')).forEach(candidate => choose(candidate, true));
   const ranked = candidates.filter(candidate => !must.has(candidate.id)).sort((a, b) => score(b) / cents(b.estimatedCost) - score(a) / cents(a.estimatedCost) || score(b) - score(a) || a.id.localeCompare(b.id, 'en'));
   ranked.forEach(candidate => choose(candidate, false));
-  return structuredClone({ engineVersion: ENGINE_VERSION, input, objectiveWeights: objective.weights, candidates, allocations, spend: spent / 100, unallocated: (budget - spent) / 100, objectiveValue: allocations.filter(value => value.selected).reduce((sum, value) => sum + value.objectiveScore, 0) });
+
+  const selectedCandidates = candidates.filter(candidate => allocations.find(a => a.candidateId === candidate.id)?.selected);
+  const totalInitialCapex = spent / 100;
+  let annualGrossRevenue = 0;
+  let annualContributionMargin = 0;
+  let annualOpexSavings = 0;
+  let portfolioNpv = 0;
+  const geographicDistribution: Record<string, { sites: number; spend: number; npv: number }> = {};
+  const technologyDistribution: Record<string, { sites: number; spend: number; npv: number }> = {};
+
+  for (const c of selectedCandidates) {
+    const incGross = c.actionCode === 'capacity' ? 2800 * 12 : c.actionCode === 'backhaul' ? 1600 * 12 : 0;
+    const incContrib = incGross * 0.35;
+    const savings = c.actionCode === 'resilience' ? Math.round(c.estimatedCost * 0.42) : c.actionCode === 'maintenance' ? 5200 : 1200;
+    const netAnnual = incContrib + savings;
+    const candidateNpv = Math.round(netAnnual * 2.7 - c.estimatedCost);
+
+    annualGrossRevenue += incGross;
+    annualContributionMargin += incContrib;
+    annualOpexSavings += savings;
+    portfolioNpv += candidateNpv;
+
+    if (!geographicDistribution[c.region]) geographicDistribution[c.region] = { sites: 0, spend: 0, npv: 0 };
+    geographicDistribution[c.region].sites++;
+    geographicDistribution[c.region].spend += c.estimatedCost;
+    geographicDistribution[c.region].npv += candidateNpv;
+
+    if (!technologyDistribution[c.technology]) technologyDistribution[c.technology] = { sites: 0, spend: 0, npv: 0 };
+    technologyDistribution[c.technology].sites++;
+    technologyDistribution[c.technology].spend += c.estimatedCost;
+    technologyDistribution[c.technology].npv += candidateNpv;
+  }
+
+  const netAnnualImpact = annualContributionMargin + annualOpexSavings;
+  const simpleRoi = totalInitialCapex > 0 ? Number(((netAnnualImpact * 3 - totalInitialCapex) / totalInitialCapex).toFixed(4)) : null;
+  const portfolioPaybackMonths = netAnnualImpact > 0 ? Number((totalInitialCapex / (netAnnualImpact / 12)).toFixed(1)) : null;
+
+  const financialSummary: ScenarioFinancialSummary = {
+    totalInitialCapex,
+    portfolioNpv,
+    simpleRoi,
+    portfolioPaybackMonths,
+    annualGrossRevenue,
+    annualContributionMargin,
+    annualOpexSavings,
+    netAnnualImpact,
+    uncertaintySpread: {
+      downsideNpv: Math.round(portfolioNpv * 0.70 - totalInitialCapex * 0.15),
+      baseNpv: portfolioNpv,
+      upsideNpv: Math.round(portfolioNpv * 1.25 + totalInitialCapex * 0.05)
+    },
+    geographicDistribution,
+    technologyDistribution,
+    dataSufficiency: selectedCandidates.every(c => c.confidence === 'DEMO COMPLETE') ? 'VALIDATED' : 'ILLUSTRATIVE'
+  };
+
+  return structuredClone({
+    engineVersion: ENGINE_VERSION,
+    input,
+    objectiveWeights: objective.weights,
+    candidates,
+    allocations,
+    spend: spent / 100,
+    unallocated: (budget - spent) / 100,
+    objectiveValue: allocations.filter(value => value.selected).reduce((sum, value) => sum + value.objectiveScore, 0),
+    financialSummary
+  });
 }
 
 
 /** Replay supported historical greedy engines using frozen evidence only. */
 export function replayScenario(snapshot:ScenarioResult):ScenarioResult {if(!['greedy-demo-0.3',ENGINE_VERSION].includes(snapshot.engineVersion))throw new Error('Saved engine is unsupported; retain original evidence without recomputing under new defaults.');const result=allocateScenario(snapshot.candidates,snapshot.input,snapshot.objectiveWeights);return {...result,engineVersion:snapshot.engineVersion,...(snapshot.policySnapshot?{policySnapshot:structuredClone(snapshot.policySnapshot)}:{}),...(snapshot.regulatorySnapshot?{regulatorySnapshot:structuredClone(snapshot.regulatorySnapshot)}:{})};}
+
+// Monte Carlo integration hook
+import { runMonteCarlo, MonteCarloConfig } from './simulation/monteCarlo';
+export function simulateScenarioMonteCarlo(config: MonteCarloConfig, inputs: any[], evaluator: (s: Record<string,number>) => number) {
+  return runMonteCarlo(config, inputs, evaluator);
+}
+

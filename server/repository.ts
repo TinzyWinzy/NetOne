@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+﻿import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { neon } from '@neondatabase/serverless';
 import { databaseUrl } from './database.js';
@@ -73,7 +73,7 @@ export async function saveWorkspace(workspace: Workspace, expectedRevision: numb
       netone_investment_candidates:new Set(previous.evidence.map(record=>canonicalId(record.id+':candidate'))),
       netone_score_components:new Set(previous.evidence.flatMap(record=>record.candidate.components.map(component=>canonicalId(record.id+':'+component.code)))),
       netone_import_runs:new Set(previous.imports.map(record=>canonicalId(record.id))),
-      netone_score_runs:new Set(previous.scoreRuns.map(record=>canonicalId(record.id)))
+      netone_score_runs:new Set((previous.scoreRuns ?? []).map((record: any)=>canonicalId(record.id)))
     } : {};
     function project(table: string, rows: Record<string, unknown>[], columns: Record<string, string>, immutable = false) {
       if (immutable && previousIds[table]) rows=rows.filter(row=>!previousIds[table].has(String(row.id)));
@@ -102,7 +102,7 @@ export async function saveWorkspace(workspace: Workspace, expectedRevision: numb
     project('netone_score_components', workspace.evidence.flatMap(record => record.candidate.components.map(component => ({ id: canonicalId(record.id + ':' + component.code), evidence_id: canonicalId(record.id), component_code: component.code, snapshot: component }))), { id: 'uuid', evidence_id: 'uuid', component_code: 'text', snapshot: 'jsonb' }, true);
     project('netone_import_runs', workspace.imports.map(record => ({ id: canonicalId(record.id), import_key: record.key, snapshot: record })), { id: 'uuid', import_key: 'text', snapshot: 'jsonb' }, true);
     project('netone_reviews', workspace.reviews.map(record => ({ id: canonicalId(record.id), snapshot: record })), { id: 'uuid', snapshot: 'jsonb' });
-    project('netone_score_runs', workspace.scoreRuns.map(record => ({ id: canonicalId(record.id), snapshot: record })), { id: 'uuid', snapshot: 'jsonb' }, true);
+    project('netone_score_runs', (workspace.scoreRuns ?? []).map((record: any) => ({ id: canonicalId(record.id), snapshot: record })), { id: 'uuid', snapshot: 'jsonb' }, true);
     if(workspace.pilot){const p=workspace.pilot;
       project('netone_obligation_versions',p.obligations.map(o=>({id:canonicalId(o.id+':'+o.version),snapshot:o})),{id:'uuid',snapshot:'jsonb'},true);
       project('netone_cells',p.cells.map(c=>({id:canonicalId(c.id),site_id:siteId(c.siteId),snapshot:c})),{id:'uuid',site_id:'uuid',snapshot:'jsonb'});
@@ -110,6 +110,9 @@ export async function saveWorkspace(workspace: Workspace, expectedRevision: numb
       project('netone_obligation_findings',p.findings.map(f=>({id:canonicalId(f.id),snapshot:f})),{id:'uuid',snapshot:'jsonb'},true);
       project('netone_corrective_cases',p.cases.map(c=>({id:canonicalId(c.id),site_id:siteId(c.siteId),snapshot:c})),{id:'uuid',site_id:'uuid',snapshot:'jsonb'});
       project('netone_privacy_reviews',p.privacyIncidents.map(r=>({id:canonicalId(r.id),snapshot:r})),{id:'uuid',snapshot:'jsonb'});
+    }
+    if(workspace.approvedProjects){
+      project('netone_approved_projects',workspace.approvedProjects.map(p=>({id:canonicalId(p.id),scenario_id:p.scenarioId?canonicalId(p.scenarioId):null,site_id:siteId(p.siteId),candidate_key:p.candidateId,approved_by:p.approvedBy,approved_at:p.approvedAt,implementation_status:p.status,expected_npv:p.expectedNpv,expected_savings:p.expectedAnnualSavings,realized_npv:p.outcomeVerification?.realizedNpv??null,realized_savings:p.outcomeVerification?.realizedAnnualSavings??null,verified_at:p.outcomeVerification?.verifiedAt??null,verified_by:p.outcomeVerification?.verifiedBy??null,snapshot:p})),{id:'uuid',scenario_id:'uuid',site_id:'uuid',candidate_key:'text',approved_by:'text',approved_at:'timestamptz',implementation_status:'text',expected_npv:'numeric',expected_savings:'numeric',realized_npv:'numeric',realized_savings:'numeric',verified_at:'timestamptz',verified_by:'text',snapshot:'jsonb'});
     }
     operations.push(sql`INSERT INTO netone_audit(id,occurred_at,record) VALUES(${audit.id},${audit.occurredAt},${JSON.stringify(audit)}::jsonb)`);
     try { await sql.transaction(operations); } catch (error) { if ((error as { code?: string }).code === '40001') throw new RevisionConflict('Workspace changed; reload and retry.'); throw error; }

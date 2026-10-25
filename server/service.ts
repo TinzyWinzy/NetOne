@@ -104,7 +104,12 @@ export async function handleNetOne(request: RequestData): Promise<ResponseData> 
       const workspace=await getWorkspace();const evidence=workspace.evidence.find(record=>record.id===request.id);if(!evidence)return {status:404,body:{error:'Evidence not found.'}};
       await audit(user,'CANDIDATE_EXPORTED',evidence.id,evidence);return {status:200,body:{evidence,exportedBy:user.username,exportedAt:new Date().toISOString(),dataStatus:'SYNTHETIC'}};
     }
-    if (['incidents','rules','config','score','imports','candidate-evidence','reviews','pilot'].includes(request.action) && request.method === 'POST') {
+    if (['cost-optimization','predictive-assurance','modernization'].includes(request.action) && request.method === 'GET') {
+      const workspace = await getWorkspace();
+      const command = executeCommand(workspace, request.action, { revision: workspace.revision, period: '2026-09', siteId: request.id }, user, new Date().toISOString());
+      return { status: 200, body: command.output };
+    }
+    if (['incidents','rules','config','score','imports','candidate-evidence','reviews','pilot','cost-optimization','predictive-assurance','modernization','preventive-actions','approved-projects'].includes(request.action) && request.method === 'POST') {
       const previousWorkspace=await getWorkspace();const workspace=structuredClone(previousWorkspace);
       if(request.action==='reviews'&&request.body?.operation==='submit'&&request.body?.subjectType==='scenario'&&!(await listScenarios()).some(record=>record.id===request.body.subjectId))return {status:404,body:{error:'Saved scenario not found.'}};
       const expected=workspace.revision;const command=executeCommand(workspace,request.action,request.body,user,new Date().toISOString());workspace.revision++;

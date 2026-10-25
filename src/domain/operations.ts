@@ -16,8 +16,67 @@ export interface SourceMapping { id: string; source: string; externalRef: string
 export interface ImportRun { id: string; key: string; source: string; hash: string; at: string; actor: string; accepted: number; rejected: number; quarantine: { row: number; reason: string }[]; demo: true; acceptedRecords?: unknown[]; previousRecords?: { siteId: string; observation: unknown }[] }
 export interface CandidateRecord { id: string; at: string; actor: string; candidate: Candidate; config: ModelConfig; source: { site: Site; mappings: SourceMapping[]; incidents: Incident[]; evaluations: RuleEvaluation[] }; hash: string }
 export interface Review { id: string; subjectType: 'candidate' | 'scenario'; subjectId: string; events: { status: 'SUBMITTED' | 'IN_REVIEW' | 'REVIEWED' | 'CHANGES_REQUESTED'; actor: string; role: string; at: string; note: string }[] }
-export interface ScoreRun { id: string; at: string; actor: string; configId: string; filters: PortfolioFilters; candidateCount: number; recordIds: string[] }
-export interface Workspace { pilot?:PilotState; revision: number; schemaVersion: '2'; sites: Site[]; incidents: Incident[]; rules: RuleVersion[]; evaluations: RuleEvaluation[]; configs: ModelConfig[]; activeConfigId: string; mappings: SourceMapping[]; imports: ImportRun[]; evidence: CandidateRecord[]; reviews: Review[]; scoreRuns: ScoreRun[] }
+export interface ApprovedProject {
+  id: string;
+  scenarioId?: string;
+  candidateId: string;
+  siteId: string;
+  actionCode: string;
+  actionLabel: string;
+  approvedCost: number;
+  expectedAnnualSavings: number;
+  expectedNpv: number;
+  approvedBy: string;
+  approvedRole: string;
+  approvedAt: string;
+  approvalRationale: string;
+  status: 'APPROVED' | 'DISPATCHED' | 'COMMISSIONED' | 'VERIFIED';
+  outcomeVerification?: {
+    verifiedAt: string;
+    verifiedBy: string;
+    realizedAnnualSavings: number;
+    realizedUptimePct: number;
+    realizedNpv: number;
+    actualVsExpectedRatio: number;
+    verificationNotes: string;
+  };
+}
+export interface PreventiveActionRecord {
+  id: string;
+  siteId: string;
+  title: string;
+  actionCode: string;
+  actionType: string;
+  urgency: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  estimatedCost: number;
+  estimatedAvoidedFailureCost: number;
+  estimatedImpactHours: number;
+  scheduledDate: string;
+  status: 'SCHEDULED' | 'DISPATCHED' | 'COMPLETED' | 'VERIFIED';
+  assignedTeam: string;
+  createdAt: string;
+  createdBy: string;
+  notes: string;
+}
+export interface Workspace {
+  pilot?: PilotState;
+  revision: number;
+  schemaVersion: '2';
+  sites: Site[];
+  incidents: Incident[];
+  rules: RuleVersion[];
+  evaluations: RuleEvaluation[];
+  configs: ModelConfig[];
+  activeConfigId: string;
+  mappings: SourceMapping[];
+  imports: ImportRun[];
+  evidence: CandidateRecord[];
+  reviews: Review[];
+  /** Legacy score run records kept for server compatibility */
+  scoreRuns?: unknown[];
+  approvedProjects?: ApprovedProject[];
+  preventiveSchedule?: PreventiveActionRecord[];
+}
 export type WorkspaceView = Omit<Workspace, 'evidence'> & { evidence: (Omit<CandidateRecord, 'source' | 'candidate'> & { candidateId: string; siteId: string; action: string; score: number | null; period: Period })[] };
 
 export function incidentState(incident: Incident): IncidentState { return incident.events[incident.events.length - 1].state; }
