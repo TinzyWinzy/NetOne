@@ -171,7 +171,8 @@ export function allocateScenario(candidates: Candidate[], input: ScenarioInput, 
 export function replayScenario(snapshot:ScenarioResult):ScenarioResult {if(!['greedy-demo-0.3',ENGINE_VERSION].includes(snapshot.engineVersion))throw new Error('Saved engine is unsupported; retain original evidence without recomputing under new defaults.');const result=allocateScenario(snapshot.candidates,snapshot.input,snapshot.objectiveWeights);return {...result,engineVersion:snapshot.engineVersion,...(snapshot.policySnapshot?{policySnapshot:structuredClone(snapshot.policySnapshot)}:{}),...(snapshot.regulatorySnapshot?{regulatorySnapshot:structuredClone(snapshot.regulatorySnapshot)}:{})};}
 
 // Monte Carlo integration hook
-import { runMonteCarlo, MonteCarloConfig } from './simulation/monteCarlo';
+import { runMonteCarlo } from './simulation/monteCarlo.js';
+import type { MonteCarloConfig } from './simulation/monteCarlo.js';
 export function simulateScenarioMonteCarlo(config: MonteCarloConfig, inputs: any[], evaluator: (s: Record<string,number>) => number) {
   return runMonteCarlo(config, inputs, evaluator);
 }

@@ -17,6 +17,7 @@
     "e2e:scenarios": "node e2e/scenarios.mjs",
     "migrate:netone": "node db/migrate-netone.mjs",
     "test:backend": "node tests/backend.mjs",
+    "test:runtime": "node tests/server-runtime.mjs && node tests/backend-response.mjs",
     "e2e:governance": "node e2e/governance.mjs",
     "test:domains": "node tests/domains.mjs",
     "e2e:domains": "node e2e/domains.mjs",
