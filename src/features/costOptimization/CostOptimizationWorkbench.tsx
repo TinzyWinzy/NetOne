@@ -61,7 +61,7 @@ export default function CostOptimizationWorkbench({
       <div className="page-heading">
         <div>
           <p className="eyebrow">OPERATIONAL COST OPTIMIZATION · {filters.period}</p>
-          <h2>Telecommunications Operating Cost Baselines & Energy Optimization</h2>
+          <h2>A clearer view of operating costs.</h2>
           <p>
             Decompose site-level power, diesel burn, and maintenance expenditure. Identify underutilized infrastructure and evaluate risk-adjusted remediation strategies.
           </p>
@@ -94,9 +94,9 @@ export default function CostOptimizationWorkbench({
 
       {/* Control bar */}
       <section className="panel mb-6">
-        <div className="action-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+        <div className="cost-controls">
+          <div className="cost-search-controls">
+            <label className="checkbox-label">
               <input
                 type="checkbox"
                 checked={filterUnderutilizedOnly}
@@ -106,10 +106,10 @@ export default function CostOptimizationWorkbench({
             </label>
             <input
               type="text"
+              aria-label="Search cost optimization sites"
               placeholder="Search site ID, name, or region..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              style={{ padding: '0.4rem 0.8rem', borderRadius: '4px', border: '1px solid #ccc' }}
             />
           </div>
           <span className="subtle">Showing {filteredRecommendations.length} of {summary.recommendations.length} evaluated sites</span>
@@ -117,7 +117,7 @@ export default function CostOptimizationWorkbench({
       </section>
 
       {/* Main layout: Table on Left, Details on Right if selected */}
-      <div className="portfolio-layout" style={{ display: 'grid', gridTemplateColumns: selectedRecommendation ? '1fr 1fr' : '1fr', gap: '1.5rem' }}>
+      <div className={`cost-layout ${selectedRecommendation ? 'has-selection' : ''}`}>
         {/* Sites Table */}
         <section className="panel">
           <div className="section-heading">

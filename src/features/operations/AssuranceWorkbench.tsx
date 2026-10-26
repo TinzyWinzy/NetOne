@@ -60,7 +60,7 @@ export default function AssuranceWorkbench(){
  };
 
  return <div className="assurance-workbench">
-   <div className="page-heading"><div><p className="eyebrow">SERVICE ASSURANCE & PREDICTIVE INTELLIGENCE · SYNTHETIC</p><h2>Predictive Service Assurance and Regulatory Compliance</h2><p>Deterministic risk horizons (7d/30d/90d) → Preventive intervention scheduling → Verified regulatory compliance under SI 154/2024.</p></div></div>
+   <div className="page-heading"><div><p className="eyebrow">SERVICE ASSURANCE · SYNTHETIC</p><h2>Understand risk. Plan the response.</h2><p>Review operational risk horizons, preventive maintenance and the evidence behind service obligations.</p></div></div>
    <nav className="nav-row assurance-tabs" aria-label="Assurance workflow">{[['predictive','Predictive service assurance'],['obligations','Obligation register'],['qos','Cell QoS evidence'],['cases','Corrective cases'],['privacy','Data governance']].map(([id,label])=><button key={id} aria-current={tab===id?'page':undefined} onClick={()=>{setTab(id);setLimit(10)}}>{label}</button>)}</nav>
    <section className="panel mt-6"><p className="data-notice">No legal compliance or capital approval is inferred. Rule review records an interpretation for this synthetic pilot; actual NetOne licence, exemptions, directions and sampling protocol remain to be verified. Penalty calculations are disabled.</p><label>Review / evidence note<input aria-label="Assurance note" value={note} onChange={e=>setNote(e.target.value)} maxLength={1000}/></label>{message&&<p role="status">{message}</p>}</section>
 
@@ -72,17 +72,17 @@ export default function AssuranceWorkbench(){
      <p className="subtle">Explainable deterministic risk scoring based on power instability, equipment age, historical outage duration, and SLA drop rates. Note: Rule-based scores reflect operational risk factors and are not statistically calibrated failure probabilities.</p>
      
      <div className="metric-strip mt-4">
-       <button onClick={() => setSelectedHorizon('7d')} style={{ outline: selectedHorizon === '7d' ? '2px solid var(--orange)' : 'none' }}>
+       <button onClick={() => setSelectedHorizon('7d')} aria-pressed={selectedHorizon === '7d'}>
          <span>7-Day Risk Horizon</span>
          <strong>{predictiveData.horizons.sevenDay.criticalCount} Critical</strong>
          <small>{predictiveData.horizons.sevenDay.highCount} high risk · Mean score {predictiveData.horizons.sevenDay.meanRiskScore.toFixed(1)}/100</small>
        </button>
-       <button onClick={() => setSelectedHorizon('30d')} style={{ outline: selectedHorizon === '30d' ? '2px solid var(--orange)' : 'none' }}>
+       <button onClick={() => setSelectedHorizon('30d')} aria-pressed={selectedHorizon === '30d'}>
          <span>30-Day Risk Horizon</span>
          <strong>{predictiveData.horizons.thirtyDay.criticalCount} Critical</strong>
          <small>{predictiveData.horizons.thirtyDay.highCount} high risk · Mean score {predictiveData.horizons.thirtyDay.meanRiskScore.toFixed(1)}/100</small>
        </button>
-       <button onClick={() => setSelectedHorizon('90d')} style={{ outline: selectedHorizon === '90d' ? '2px solid var(--orange)' : 'none' }}>
+       <button onClick={() => setSelectedHorizon('90d')} aria-pressed={selectedHorizon === '90d'}>
          <span>90-Day Risk Horizon</span>
          <strong>{predictiveData.horizons.ninetyDay.criticalCount} Critical</strong>
          <small>{predictiveData.horizons.ninetyDay.highCount} high risk · Mean score {predictiveData.horizons.ninetyDay.meanRiskScore.toFixed(1)}/100</small>
